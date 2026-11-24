@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#071f25">
+  <meta name="description" content="JIA — your video quality workspace.">
+  <title>JIA — Video Quality Studio</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div>
+  <header class="topbar">
+    <a class="brand" href="#" aria-label="JIA home"><span class="brand-mark">J</span><span>JIA<span class="brand-dot">.</span></span></a>
+    <div class="top-actions"><span class="status"><i></i> SYSTEM ONLINE</span><button id="replayIntro" class="ghost">Replay intro</button></div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="eyebrow"><span class="pulse"></span> VIDEO QUALITY STUDIO</div>
+      <h1>Your video.<br><span>Ready for its next level.</span></h1>
+      <p class="hero-copy">Inspect your video's real properties, keep your original safe, and prepare a high-quality workflow.</p>
+      <div class="hero-meta"><span>01 / ANALYZE</span><span>02 / REVIEW</span><span>03 / EXPORT</span></div>
+    </section>
+
+    <section class="workspace">
+      <div class="panel upload-panel">
+        <div class="panel-heading"><div><span class="kicker">YOUR WORKSPACE</span><h2>Choose a video</h2></div><span class="step">STEP 01</span></div>
+        <label class="dropzone" for="videoInput" id="dropzone">
+          <span class="upload-icon">↥</span>
+          <strong>Drop your video here</strong>
+          <span>or tap to browse your device</span>
+          <small>MP4, MOV, WebM and other browser-supported formats</small>
+          <input id="videoInput" type="file" accept="video/*">
+        </label>
+        <div class="privacy-note"><span>◈</span> Your selected video is analyzed locally in this browser. It is not uploaded by this starter app.</div>
+      </div>
+
+      <div class="panel report-panel">
+        <div class="panel-heading"><div><span class="kicker">LIVE REPORT</span><h2>Video statistics</h2></div><span class="live-tag">● LIVE</span></div>
+        <div id="emptyState" class="empty-state"><div class="scan-orb">◉</div><p>Your report will appear here.</p><small>Select a video to begin analysis.</small></div>
+        <div id="report" class="report hidden">
+          <div class="file-line"><span class="file-icon">▶</span><div class="file-name-wrap"><strong id="fileName">Video</strong><small id="fileType">—</small></div></div>
+          <div class="stats-grid">
+            <div class="stat"><small>RESOLUTION</small><strong id="resolution">—</strong></div>
+            <div class="stat"><small>FRAME RATE</small><strong id="fps">Not detected</strong></div>
+            <div class="stat"><small>FILE SIZE</small><strong id="fileSize">—</strong></div>
+            <div class="stat"><small>DURATION</small><strong id="duration">—</strong></div>
+          </div>
+          <div class="score-wrap"><div><small>TECHNICAL READINESS</small><strong id="score">—</strong><span>/ 100</span></div><div class="score-track"><i id="scoreBar"></i></div></div>
+          <p class="disclaimer">This is a basic file-readiness estimate, not a measurement of visual quality. Frame rate may not be available in every browser.</p>
+          <video id="preview" controls playsinline></video>
+          <button id="keepOriginal" class="primary full">Keep original video</button>
+          <a id="downloadOriginal" class="download-link hidden" download>Download original file</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="bottom-grid">
+      <div class="panel assistant-panel">
+        <div class="panel-heading"><div><span class="kicker">YOUR COMPANION</span><h2>Assistant settings</h2></div><span class="spark">✦</span></div>
+        <p>Choose a voice for JIA's system announcements. Anime character artwork and official character voices can be added when properly licensed.</p>
+        <div class="assistant-controls"><label for="voiceMode">Voice</label><select id="voiceMode"><option value="system">SYSTEM voice</option><option value="off">Voice off</option></select><button id="testVoice" class="secondary">Test voice</button></div>
+      </div>
+      <div class="panel system-panel"><span class="kicker">SYSTEM MESSAGE</span><p id="systemMessage">“JIA is ready. Select a video when you're ready.”</p><span class="system-sign">— JIA SYSTEM</span></div>
+    </section>
+    <footer>Built by Joshua, Iziah, and Alliah · Bachelor of Science in Information Technology <span>JIA © 2026</span></footer>
+  </main>
+
+  <div class="intro-overlay" id="introOverlay">
+    <div class="intro-card"><div class="intro-logo">JIA<span>.</span></div><div class="intro-line"></div><p class="intro-system">SYSTEM INITIALIZING</p><h2>Welcome to JIA</h2><p>Your video quality workspace is ready.</p><button id="enterApp" class="primary">Enter JIA <span>→</span></button></div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
