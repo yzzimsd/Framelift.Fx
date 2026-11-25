@@ -1,164 +1,82 @@
-const $ = (id) => document.getElementById(id);
+const input = document.getElementById('videoInput');
+const dropzone = document.getElementById('dropzone');
+const emptyState = document.getElementById('emptyState');
+const report = document.getElementById('report');
+const preview = document.getElementById('preview');
+const message = document.getElementById('systemMessage');
+let currentUrl = null;
 
-const intro = $("introOverlay");
-const enter = $("enterApp");
-const replay = $("replayIntro");
-const videoInput = $("videoInput");
-const preview = $("preview");
-
-let currentVideoURL = null;
-let currentFile = null;
-
-function enterJIA() {
-  intro.classList.add("hidden");
-  $("systemMessage").textContent =
-    "SYSTEM: JIA is online. Select a video to begin.";
+function say(text) {
+  message.textContent = `“${text}”`;
+  if (document.getElementById('voiceMode').value === 'off' || !('speechSynthesis' in window)) return;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.rate = 0.96;
+  utterance.pitch = 1.03;
+  window.speechSynthesis.speak(utterance);
 }
-
-enter.addEventListener("click", enterJIA);
-
-replay.addEventListener("click", () => {
-  intro.classList.remove("hidden");
-});
-
-function formatSize(bytes) {
-  if (bytes < 1024 * 1024) {
-    return (bytes / 1024).toFixed(1) + " KB";
-  }
-  return (bytes / (1024 * 1024)).toFixed(2) + " MB";
+function sizeLabel(bytes) {
+  if (!Number.isFinite(bytes)) return '—';
+  const units = ['B','KB','MB','GB']; let n = bytes, i = 0;
+  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+  return `${n.toFixed(i === 0 ? 0 : 2)} ${units[i]}`;
 }
-
-function formatDuration(seconds) {
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${mins}:${String(secs).padStart(2, "0")}`;
+function durationLabel(seconds) {
+  if (!Number.isFinite(seconds)) return '—';
+  const s = Math.floor(seconds), h = Math.floor(s/3600), m = Math.floor((s%3600)/60), r = s%60;
+  return h ? `${h}:${String(m).padStart(2,'0')}:${String(r).padStart(2,'0')}` : `${m}:${String(r).padStart(2,'0')}`;
 }
-
-// Create the social sharing button
-const shareButton = document.createElement("button");
-shareButton.id = "shareVideo";
-shareButton.className = "primary full";
-shareButton.textContent = "↗ SHARE TO SOCIAL MEDIA";
-shareButton.hidden = true;
-$("report").appendChild(shareButton);
-
-videoInput.addEventListener("change", () => {
-  const file = videoInput.files[0];
-  if (!file) return;
-
-  currentFile = file;
-
-  if (currentVideoURL) {
-    URL.revokeObjectURL(currentVideoURL);
-  }
-
-  currentVideoURL = URL.createObjectURL(file);
-  preview.src = currentVideoURL;
-
-  $("emptyState").classList.add("hidden");
-  $("report").classList.remove("hidden");
-
-  $("fileName").textContent = file.name;
-  $("fileType").textContent = file.type || "Unknown format";
-  $("fileSize").textContent = formatSize(file.size);
-  $("resolution").textContent = "Analyzing...";
-  $("duration").textContent = "Analyzing...";
-  $("fps").textContent = "Source FPS unavailable";
-
-  $("downloadOriginal").href = currentVideoURL;
-  $("downloadOriginal").download = file.name;
-  $("downloadOriginal").classList.remove("hidden");
-
-  shareButton.hidden = false;
-
-  $("systemMessage").textContent =
-    "SYSTEM: Video selected. Analyzing properties...";
+function analyze(file) {
+  if (!file || !file.type.startsWith('video/')) { say('Please choose a supported video file.'); return; }
+  if (currentUrl) URL.revokeObjectURL(currentUrl);
+  currentUrl = URL.createObjectURL(file);
+  preview.src = currentUrl;
+  emptyState.classList.add('hidden'); report.classList.remove('hidden');
+  document.getElementById('fileName').textContent = file.name;
+  document.getElementById('fileType').textContent = file.type || 'Video file';
+  document.getElementById('fileSize').textContent = sizeLabel(file.size);
+  document.getElementById('resolution').textContent = 'Reading…';
+  document.getElementById('fps').textContent = 'Not detected';
+  document.getElementById('duration').textContent = 'Reading…';
+  const keep = document.getElementById('downloadOriginal');
+  keep.href = currentUrl; keep.download = file.name; keep.classList.remove('hidden');
+  preview.onloadedmetadata = () => {
+    const w = preview.videoWidth, h = preview.videoHeight;
+    document.getElementById('resolution').textContent = w && h ? `${w} × ${h}` : 'Unavailable';
+    document.getElementById('duration').textContent = durationLabel(preview.duration);
+    // The browser's standard video element does not expose a reliable encoded FPS value.
+    document.getElementById('fps').textContent = 'Not exposed';
+    // A transparent technical readiness indicator based only on readable metadata.
+    let score = 50;
+    if (w >= 1280 && h >= 720) score += 20;
+    if (w >= 1920 && h >= 1080) score += 10;
+    if (file.size > 0 && preview.duration > 0) score += 10;
+    if (file.type.includes('mp4')) score += 5;
+    score = Math.min(score, 95);
+    document.getElementById('score').textContent = score;
+    document.getElementById('scoreBar').style.width = `${score}%`;
+    say(`Analysis complete. Your video is ${w} by ${h} pixels. The original file is preserved.`);
+  };
+  preview.onerror = () => say('The browser could not read this video format.');
+}
+input.addEventListener('change', e => analyze(e.target.files[0]));
+['dragenter','dragover'].forEach(type => dropzone.addEventListener(type, e => { e.preventDefault(); dropzone.classList.add('drag'); }));
+['dragleave','drop'].forEach(type => dropzone.addEventListener(type, e => { e.preventDefault(); dropzone.classList.remove('drag'); }));
+dropzone.addEventListener('drop', e => analyze(e.dataTransfer.files[0]));
+document.getElementById('keepOriginal').addEventListener('click', () => {
+  say('Your original video is unchanged. Use the download link to save a copy.');
+  document.getElementById('downloadOriginal').click();
 });
-
-preview.addEventListener("loadedmetadata", () => {
-  $("resolution").textContent =
-    `${preview.videoWidth} × ${preview.videoHeight}`;
-
-  $("duration").textContent =
-    formatDuration(preview.duration);
-
-  $("fps").textContent =
-    "Requires detailed media analysis";
-
-  // This is a file-readiness check, not a visual quality score.
-  const ready =
-    preview.videoWidth > 0 &&
-    preview.videoHeight > 0 &&
-    Number.isFinite(preview.duration);
-
-  const score = ready ? 100 : 0;
-
-  $("score").textContent = score;
-  $("scoreBar").style.width = score + "%";
-
-  $("systemMessage").textContent =
-    "SYSTEM: Video analysis complete. Original file preserved.";
+document.getElementById('testVoice').addEventListener('click', () => say('SYSTEM voice check. Framelift.fx is ready.'));
+document.getElementById('voiceMode').addEventListener('change', e => {
+  if (e.target.value === 'off' && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+  say(e.target.value === 'off' ? 'Voice announcements are off.' : 'SYSTEM voice announcements are on.');
 });
-
-$("keepOriginal").addEventListener("click", () => {
-  $("systemMessage").textContent =
-    "SYSTEM: Original video preserved. No conversion performed.";
-
-  $("downloadOriginal").click();
+function closeIntro() { document.getElementById('introOverlay').classList.add('done'); say('Initializing Framelift.fx system. Welcome. Your video workspace is ready.'); }
+document.getElementById('enterApp').addEventListener('click', closeIntro);
+document.getElementById('replayIntro').addEventListener('click', () => {
+  document.getElementById('introOverlay').classList.remove('done');
 });
-
-// Android and browser social sharing
-shareButton.addEventListener("click", async () => {
-  if (!currentFile) return;
-
-  try {
-    if (
-      navigator.share &&
-      navigator.canShare &&
-      navigator.canShare({ files: [currentFile] })
-    ) {
-      await navigator.share({
-        title: "JIA Video",
-        text: "Shared using JIA Video Quality Studio.",
-        files: [currentFile]
-      });
-
-      $("systemMessage").textContent =
-        "SYSTEM: Sharing menu opened successfully.";
-    } else {
-      $("downloadOriginal").click();
-
-      $("systemMessage").textContent =
-        "SYSTEM: Sharing unavailable. Download your video and share it manually.";
-    }
-  } catch (error) {
-    if (error.name !== "AbortError") {
-      $("systemMessage").textContent =
-        "SYSTEM: Sharing failed. Please download your original video.";
-    }
-  }
-});
-
-// SYSTEM voice
-$("testVoice").addEventListener("click", () => {
-  if ($("voiceMode").value === "off") return;
-
-  if ("speechSynthesis" in window) {
-    speechSynthesis.cancel();
-
-    const message = new SpeechSynthesisUtterance(
-      "Welcome to JIA. Your video quality workspace is ready."
-    );
-
-    speechSynthesis.speak(message);
-  }
-});
-
-$("voiceMode").addEventListener("change", (event) => {
-  if (
-    event.target.value === "off" &&
-    "speechSynthesis" in window
-  ) {
-    speechSynthesis.cancel();
-  }
-});
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));
+}
