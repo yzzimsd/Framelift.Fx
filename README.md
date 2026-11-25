@@ -1,4 +1,4 @@
-# JIA — Video Quality Studio (starter)
+# Framelift.fx — Video Quality Studio (starter)
 
 A responsive, installable PWA starter for Android and desktop.
 
