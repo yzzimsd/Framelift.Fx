@@ -490,3 +490,255 @@ function getExportFilters() {
 
 // Replace the old preview-only click handler with actual processing.
 enhancementButton.onclick = processAndExportVideo;
+
+// ==========================================
+// PHOTO ENHANCER — PROCESS + DOWNLOAD + SHARE
+// ==========================================
+
+(() => {
+  const photoInput = document.getElementById("photoInput");
+  const photoOriginal = document.getElementById("photoOriginal");
+  const photoEnhancedPreview = document.getElementById("photoEnhancedPreview");
+
+  const photoSharpen = document.getElementById("photoSharpen");
+  const photoDenoise = document.getElementById("photoDenoise");
+  const photoColor = document.getElementById("photoColor");
+  const photoStrength = document.getElementById("photoStrength");
+  const photoScale = document.getElementById("photoScale");
+
+  const enhancePhoto = document.getElementById("enhancePhoto");
+  const photoMessage = document.getElementById("photoMessage");
+  const photoDownload = document.getElementById("photoDownload");
+
+  if (!photoInput || !enhancePhoto) {
+    console.warn("Photo Enhancer elements missing.");
+    return;
+  }
+
+  let photoImage = null;
+  let photoFile = null;
+  let processedPhotoCanvas = null;
+  let originalPhotoURL = null;
+
+  function photoSay(text) {
+    if (photoMessage) photoMessage.textContent = text;
+  }
+
+  // LOAD SELECTED PHOTO
+  photoInput.addEventListener("change", event => {
+    const file = event.target.files?.[0];
+
+    if (!file || !file.type.startsWith("image/")) {
+      photoSay("Please select a valid photo.");
+      return;
+    }
+
+    photoFile = file;
+
+    if (originalPhotoURL) {
+      URL.revokeObjectURL(originalPhotoURL);
+    }
+
+    originalPhotoURL = URL.createObjectURL(file);
+
+    const image = new Image();
+
+    image.onload = () => {
+      photoImage = image;
+      processedPhotoCanvas = null;
+
+      if (photoOriginal) {
+        photoOriginal.src = originalPhotoURL;
+      }
+
+      if (photoEnhancedPreview.tagName === "IMG") {
+        photoEnhancedPreview.src = originalPhotoURL;
+      }
+
+      const workspace = document.getElementById("photoWorkspace");
+
+      if (workspace) {
+        workspace.hidden = false;
+        workspace.classList.remove("hidden");
+      }
+
+      enhancePhoto.disabled = false;
+
+      photoSay("Photo loaded successfully. Ready to process.");
+
+      if (photoDownload) photoDownload.classList.add("hidden");
+    };
+
+    image.onerror = () => {
+      photoSay("Unable to read this image.");
+    };
+
+    image.src = originalPhotoURL;
+  });
+
+  // ACTUAL PHOTO PROCESSING
+  function processPhoto() {
+    if (!photoImage) {
+      photoSay("Please select a photo first.");
+      return null;
+    }
+
+    const scale = Math.max(
+      1,
+      Math.min(4, Number(photoScale?.value) || 1)
+    );
+
+    const strength = photoStrength?.value || "medium";
+
+    const amount =
+      strength === "light" ? 1 :
+      strength === "strong" ? 3 : 2;
+
+    const canvas = document.createElement("canvas");
+
+    canvas.width = Math.round(photoImage.naturalWidth * scale);
+    canvas.height = Math.round(photoImage.naturalHeight * scale);
+
+    const ctx = canvas.getContext("2d");
+
+    if (!ctx) {
+      throw new Error("Canvas unavailable.");
+    }
+
+    // Color and contrast processing
+    const contrast = photoSharpen?.checked
+      ? 1 + (amount * 0.07)
+      : 1;
+
+    const saturation = photoColor?.checked
+      ? 1 + (amount * 0.20)
+      : 1;
+
+    ctx.filter = `contrast(${contrast}) saturate(${saturation})`;
+
+    ctx.drawImage(
+      photoImage,
+      0,
+      0,
+      canvas.width,
+      canvas.height
+    );
+
+    ctx.filter = "none";
+
+    // Soft denoise approximation
+    if (photoDenoise?.checked) {
+      const temp = document.createElement("canvas");
+
+      temp.width = canvas.width;
+      temp.height = canvas.height;
+
+      const tempCtx = temp.getContext("2d");
+
+      tempCtx.filter = `blur(${amount * 0.12}px)`;
+
+      tempCtx.drawImage(canvas, 0, 0);
+
+      tempCtx.filter = "none";
+
+      ctx.globalAlpha = 0.10 * amount;
+
+      ctx.drawImage(temp, 0, 0);
+
+      ctx.globalAlpha = 1;
+    }
+
+    processedPhotoCanvas = canvas;
+
+    // Show enhanced output
+    const previewURL = canvas.toDataURL("image/jpeg", 0.95);
+
+    if (photoEnhancedPreview.tagName === "IMG") {
+      photoEnhancedPreview.src = previewURL;
+    } else {
+      photoEnhancedPreview.style.backgroundImage =
+        `url("${previewURL}")`;
+    }
+
+    // Make downloadable file
+    canvas.toBlob(blob => {
+      if (!blob) {
+        photoSay("Could not create the output image.");
+        return;
+      }
+
+      processedPhotoBlob = blob;
+
+      latestProcessedFile = new File(
+        [blob],
+        "framelift-photo-enhanced.jpg",
+        { type: "image/jpeg" }
+      );
+
+      if (photoDownload) {
+        photoDownload.href = URL.createObjectURL(blob);
+        photoDownload.download = "framelift-photo-enhanced.jpg";
+        photoDownload.classList.remove("hidden");
+
+        // Prevent anchor from being required if it was a button
+        photoDownload.onclick = event => {
+          if (photoDownload.tagName !== "A") {
+            event.preventDefault();
+            downloadBlob(blob, "framelift-photo-enhanced.jpg");
+          }
+        };
+      }
+
+      photoSay(
+        `Photo processed successfully! Output: ${canvas.width} × ${canvas.height}. Download or use Share to Social Media.`
+      );
+
+    }, "image/jpeg", 0.95);
+
+    return canvas;
+  }
+
+  // PROCESS BUTTON
+  enhancePhoto.addEventListener("click", async () => {
+    if (!photoImage) {
+      photoSay("Please select a photo first.");
+      return;
+    }
+
+    enhancePhoto.disabled = true;
+
+    try {
+      await showEnhancementLoader(async progress => {
+        progress(10, "Preparing photo...");
+
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+        progress(35, "Analyzing image...");
+
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+        progress(60, "Processing image...");
+
+        processPhoto();
+
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+        progress(90, "Preparing output...");
+
+        await new Promise(resolve => setTimeout(resolve, 150));
+
+        progress(100, "Photo processing complete!");
+
+        return true;
+      });
+
+    } catch (error) {
+      console.error("Photo processing error:", error);
+      photoSay("Photo processing failed. Please try again.");
+
+    } finally {
+      enhancePhoto.disabled = false;
+    }
+  });
+
+})();
