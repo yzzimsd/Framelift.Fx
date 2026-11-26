@@ -80,3 +80,38 @@ document.getElementById('replayIntro').addEventListener('click', () => {
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));
 }
+// FrameLift FX Enhancement Studio
+const enhancementButton = document.getElementById("applyEnhancements");
+const enhancementMessage = document.getElementById("enhancementMessage");
+
+if (enhancementButton && enhancementMessage) {
+  enhancementButton.addEventListener("click", () => {
+    const selected = [];
+
+    if (document.getElementById("enhanceSharpen")?.checked)
+      selected.push("Sharpen");
+
+    if (document.getElementById("enhanceDenoise")?.checked)
+      selected.push("Denoise");
+
+    if (document.getElementById("enhanceColor")?.checked)
+      selected.push("Color Enhancement");
+
+    if (document.getElementById("enhanceSmooth")?.checked)
+      selected.push("Smooth Motion");
+
+    const strength =
+      document.getElementById("enhanceStrength")?.value || "medium";
+
+    if (selected.length === 0) {
+      enhancementMessage.textContent =
+        "Please select at least one enhancement.";
+      return;
+    }
+
+    enhancementMessage.textContent =
+      "Selected: " + selected.join(", ") +
+      " | Strength: " + strength +
+      " | Ready for processing.";
+  });
+}
