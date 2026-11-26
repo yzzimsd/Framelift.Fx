@@ -453,6 +453,7 @@ function selectPhoto(file) {
   }
 
   selectedPhoto = file;
+enhancedPhotoBlob = null;
 
   if (photoPreviewUrl) {
     URL.revokeObjectURL(photoPreviewUrl);
@@ -596,29 +597,18 @@ enhancePhotoButton.addEventListener("click", async () => {
         URL.revokeObjectURL(photoExportUrl);
       }
 
-      photoExportUrl = URL.createObjectURL(blob);
+      enhancedPhotoBlob = blob;
 
-      photoEnhancedPreview.src = photoExportUrl;
+photoExportUrl = URL.createObjectURL(blob);
 
-      const baseName = selectedPhoto.name.replace(/\.[^.]+$/, "");
+photoEnhancedPreview.src = photoExportUrl;
 
-      const exportName = `${baseName}-enhanced.png`;
+photoDownload.classList.add("hidden");
 
-      photoDownload.href = photoExportUrl;
-      photoDownload.download = exportName;
-      photoDownload.classList.remove("hidden");
+photoMessage.textContent =
+  "Enhancement complete! Tap Export Photo to save your picture.";
 
-      photoMessage.textContent =
-        "Enhancement complete! Saving to My Collection...";
-
-      await savePhotoToCollection(blob, exportName);
-
-      loadPhotoGallery();
-
-      photoMessage.textContent =
-        "Success! Your enhanced photo is saved in My Collection and ready to download.";
-
-      say("Photo enhancement complete. Your picture has been saved to My Collection.");
+say("Photo enhancement complete. Your preview is ready for export.");
 
     } finally {
       URL.revokeObjectURL(imageUrl);
@@ -659,3 +649,69 @@ openPhotoDatabase()
     photoMessage.textContent =
       "Gallery storage is unavailable in this browser.";
   });
+
+
+// ==========================================
+// INDEPENDENT PHOTO EXPORT BUTTON
+// ==========================================
+
+const exportPhotoButton = document.getElementById("exportPhoto");
+
+exportPhotoButton.addEventListener("click", async () => {
+  if (!selectedPhoto) {
+    photoMessage.textContent = "Please choose a photo first.";
+    return;
+  }
+
+  if (!photoDatabase) {
+    photoMessage.textContent = "Gallery is still initializing. Try again.";
+    return;
+  }
+
+  exportPhotoButton.disabled = true;
+
+  try {
+    const isEnhanced = !!enhancedPhotoBlob;
+
+    const exportBlob = isEnhanced
+      ? enhancedPhotoBlob
+      : selectedPhoto;
+
+    const baseName = selectedPhoto.name.replace(/\.[^.]+$/, "");
+
+    const exportName = isEnhanced
+      ? `${baseName}-enhanced.png`
+      : selectedPhoto.name;
+
+    // Save to My Collection
+    await savePhotoToCollection(exportBlob, exportName);
+
+    // Update gallery
+    loadPhotoGallery();
+
+    // Download to device
+    const downloadUrl = URL.createObjectURL(exportBlob);
+
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = exportName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    setTimeout(() => URL.revokeObjectURL(downloadUrl), 10000);
+
+    photoMessage.textContent = isEnhanced
+      ? "Enhanced photo exported and saved to My Collection!"
+      : "Original photo exported and saved to My Collection!";
+
+    say("Photo successfully exported and saved to your collection.");
+
+  } catch (error) {
+    console.error("Photo export error:", error);
+    photoMessage.textContent = "Export failed. Please try again.";
+
+  } finally {
+    exportPhotoButton.disabled = false;
+  }
+});
