@@ -640,40 +640,32 @@ exportButton.addEventListener('click', async () => {
   }
 });
 
-/* ==========================================
-   PHOTO ENHANCER — FRAMELIFT.FX
-   APP.JS EXTENSION
-========================================== */
+/* =========================================
+   FRAMELIFT.FX — PHOTO TOOLS EXTENSION
+   Photo Enhancer + AI Background Remover
+========================================= */
 
 (() => {
-  const photoInput = document.getElementById("photoInput");
-  const photoDropzone = document.getElementById("photoDropzone");
-  const photoWorkspace = document.getElementById("photoWorkspace");
-  const photoOriginal = document.getElementById("photoOriginal");
-  const photoEnhancedPreview = document.getElementById("photoEnhancedPreview");
+  const $ = id => document.getElementById(id);
 
-  const photoSharpen = document.getElementById("photoSharpen");
-  const photoDenoise = document.getElementById("photoDenoise");
-  const photoColor = document.getElementById("photoColor");
-  const photoStrength = document.getElementById("photoStrength");
-  const photoScale = document.getElementById("photoScale");
+  /* =====================================
+     PHOTO ENHANCER
+  ===================================== */
 
-  const enhancePhoto = document.getElementById("enhancePhoto");
-  const photoMessage = document.getElementById("photoMessage");
-  const photoDownload = document.getElementById("photoDownload");
+  const photoInput = $("photoInput");
+  const photoOriginal = $("photoOriginal");
+  const photoPreview = $("photoEnhancedPreview");
+  const photoEnhanceBtn = $("enhancePhoto");
+  const photoDownloadBtn = $("photoDownload");
+  const photoMessage = $("photoMessage");
 
-  if (!photoInput || !photoOriginal || !photoEnhancedPreview) {
-    console.warn("Photo Enhancer elements not found.");
-    return;
-  }
+  let photoImg = null;
+  let enhancedPhotoBlob = null;
+  let enhancedPhotoCanvas = null;
+  let photoObjectURL = null;
 
-  let originalImage = null;
-  let originalFile = null;
-  let enhancedCanvas = null;
-  let photoURL = null;
-
-  function photoStatus(text) {
-    if (photoMessage) photoMessage.textContent = text;
+  function photoStatus(message) {
+    if (photoMessage) photoMessage.textContent = message;
   }
 
   function loadPhoto(file) {
@@ -682,202 +674,517 @@ exportButton.addEventListener('click', async () => {
       return;
     }
 
-    originalFile = file;
+    if (photoObjectURL) URL.revokeObjectURL(photoObjectURL);
 
-    if (photoURL) URL.revokeObjectURL(photoURL);
-    photoURL = URL.createObjectURL(file);
+    photoObjectURL = URL.createObjectURL(file);
+    photoImg = new Image();
 
-    const img = new Image();
+    photoImg.onload = () => {
+      photoOriginal.src = photoObjectURL;
+      photoPreview.src = photoObjectURL;
+      enhancedPhotoBlob = null;
+      enhancedPhotoCanvas = null;
 
-    img.onload = () => {
-      originalImage = img;
-
-      photoOriginal.src = photoURL;
-
-      if (photoEnhancedPreview.tagName === "IMG") {
-        photoEnhancedPreview.src = photoURL;
+      const workspace = $("photoWorkspace");
+      if (workspace) {
+        workspace.hidden = false;
+        workspace.style.display = "";
       }
 
-      if (photoWorkspace) {
-        photoWorkspace.hidden = false;
-        photoWorkspace.style.display = "";
-      }
-
-      if (enhancePhoto) enhancePhoto.disabled = false;
-
-      photoStatus("Photo loaded successfully. Ready to enhance.");
-
-      enhancedCanvas = null;
+      photoStatus("Photo loaded. Ready to enhance.");
     };
 
-    img.onerror = () => {
-      photoStatus("Unable to load this image.");
-    };
-
-    img.src = photoURL;
+    photoImg.onerror = () => photoStatus("Unable to load photo.");
+    photoImg.src = photoObjectURL;
   }
 
-  // Upload button
-  photoInput.addEventListener("change", (event) => {
-    const file = event.target.files?.[0];
-    if (file) loadPhoto(file);
-  });
-
-  // Drag and drop
-  if (photoDropzone) {
-    photoDropzone.addEventListener("dragover", (event) => {
-      event.preventDefault();
-      photoDropzone.classList.add("drag-active");
-    });
-
-    photoDropzone.addEventListener("dragleave", () => {
-      photoDropzone.classList.remove("drag-active");
-    });
-
-    photoDropzone.addEventListener("drop", (event) => {
-      event.preventDefault();
-      photoDropzone.classList.remove("drag-active");
-
-      const file = event.dataTransfer.files?.[0];
-      if (file) loadPhoto(file);
+  if (photoInput) {
+    photoInput.addEventListener("change", e => {
+      loadPhoto(e.target.files?.[0]);
     });
   }
 
-  // Enhancement engine
-  function enhanceImage() {
-    if (!originalImage) {
-      photoStatus("Upload a photo first.");
-      return;
-    }
+  /* Enhance photo */
 
-    photoStatus("Enhancing photo...");
-
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-
-    const scale = photoScale?.value === "2"
-      ? 2
-      : 1;
-
-    const width = Math.min(originalImage.width * scale, 8192);
-    const height = Math.min(originalImage.height * scale, 8192);
-
-    canvas.width = width;
-    canvas.height = height;
-
-    const sharpen = Number(photoSharpen?.value || 0);
-    const denoise = Number(photoDenoise?.value || 0);
-    const color = Number(photoColor?.value || 100);
-
-    const strength = photoStrength?.value || "medium";
-
-    const multiplier = strength === "strong"
-      ? 1.5
-      : strength === "light"
-      ? 0.6
-      : 1;
-
-    const smoothing = Math.max(0, denoise * multiplier);
-
-    ctx.filter = `
-      contrast(${100 + sharpen * multiplier}%)
-      saturate(${color}%)
-      brightness(100%)
-      blur(${smoothing}px)
-    `;
-
-    ctx.drawImage(originalImage, 0, 0, width, height);
-
-    // Mild edge enhancement
-    if (sharpen > 0) {
-      ctx.filter = "none";
-
-      const imageData = ctx.getImageData(
-        0, 0, canvas.width, canvas.height
-      );
-
-      const data = imageData.data;
-      const copy = new Uint8ClampedArray(data);
-
-      const amount = Math.min(sharpen * multiplier * 0.15, 0.8);
-
-      for (let y = 1; y < height - 1; y++) {
-        for (let x = 1; x < width - 1; x++) {
-          const i = (y * width + x) * 4;
-
-          for (let c = 0; c < 3; c++) {
-            const center = copy[i + c];
-            const left = copy[i - 4 + c];
-            const right = copy[i + 4 + c];
-            const top = copy[i - width * 4 + c];
-            const bottom = copy[i + width * 4 + c];
-
-            const edge = center * 4 - left - right - top - bottom;
-
-            data[i + c] = center + edge * amount;
-          }
-        }
-      }
-
-      ctx.putImageData(imageData, 0, 0);
-    }
-
-    enhancedCanvas = canvas;
-
-    if (photoEnhancedPreview.tagName === "IMG") {
-      photoEnhancedPreview.src = canvas.toDataURL("image/png");
-    } else if (photoEnhancedPreview.tagName === "CANVAS") {
-      photoEnhancedPreview.width = canvas.width;
-      photoEnhancedPreview.height = canvas.height;
-
-      const previewCtx = photoEnhancedPreview.getContext("2d");
-      previewCtx.clearRect(
-        0, 0,
-        photoEnhancedPreview.width,
-        photoEnhancedPreview.height
-      );
-
-      previewCtx.drawImage(canvas, 0, 0);
-    }
-
-    photoStatus("Enhancement complete!");
-  }
-
-  if (enhancePhoto) {
-    enhancePhoto.addEventListener("click", enhanceImage);
-  }
-
-  // Download enhanced photo
-  if (photoDownload) {
-    photoDownload.addEventListener("click", () => {
-      if (!enhancedCanvas) {
-        photoStatus("Enhance the photo before downloading.");
+  if (photoEnhanceBtn) {
+    photoEnhanceBtn.addEventListener("click", async () => {
+      if (!photoImg) {
+        photoStatus("Upload a photo first.");
         return;
       }
 
-      enhancedCanvas.toBlob((blob) => {
-        if (!blob) {
-          photoStatus("Download failed.");
-          return;
+      photoEnhanceBtn.disabled = true;
+      photoStatus("Enhancing photo...");
+
+      try {
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+
+        const scale = $("photoScale")?.value === "2" ? 2 : 1;
+
+        canvas.width = Math.min(photoImg.width * scale, 8192);
+        canvas.height = Math.min(photoImg.height * scale, 8192);
+
+        const sharp = Number($("photoSharpen")?.value || 0);
+        const denoise = Number($("photoDenoise")?.value || 0);
+        const color = Number($("photoColor")?.value || 100);
+
+        const strength = $("photoStrength")?.value || "medium";
+
+        const power =
+          strength === "strong" ? 1.5 :
+          strength === "light" ? 0.65 : 1;
+
+        // Basic browser-based enhancement
+        ctx.filter = `
+          contrast(${100 + sharp * power}%)
+          saturate(${color}%)
+          brightness(102%)
+        `;
+
+        ctx.drawImage(photoImg, 0, 0, canvas.width, canvas.height);
+
+        // Gentle smoothing
+        if (denoise > 0) {
+          const smooth = document.createElement("canvas");
+          smooth.width = canvas.width;
+          smooth.height = canvas.height;
+
+          const sctx = smooth.getContext("2d");
+          sctx.filter = `blur(${Math.min(denoise * power, 2)}px)`;
+          sctx.drawImage(canvas, 0, 0);
+
+          ctx.globalAlpha = 0.18;
+          ctx.drawImage(smooth, 0, 0);
+          ctx.globalAlpha = 1;
         }
 
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
+        enhancedPhotoCanvas = canvas;
 
-        link.href = url;
-        link.download = `framelift-enhanced-${Date.now()}.png`;
+        enhancedPhotoBlob = await new Promise(resolve =>
+          canvas.toBlob(resolve, "image/png")
+        );
 
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
+        photoPreview.src = canvas.toDataURL("image/png");
+        photoStatus("Enhancement complete!");
 
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-
-        photoStatus("Enhanced photo downloaded!");
-      }, "image/png");
+      } catch (err) {
+        console.error(err);
+        photoStatus("Enhancement failed. Try another image.");
+      } finally {
+        photoEnhanceBtn.disabled = false;
+      }
     });
   }
 
-  photoStatus("Photo Enhancer ready.");
+  /* Photo Download */
+
+  if (photoDownloadBtn) {
+    photoDownloadBtn.addEventListener("click", () => {
+      if (!enhancedPhotoBlob) {
+        photoStatus("Enhance the photo first.");
+        return;
+      }
+
+      downloadBlob(
+        enhancedPhotoBlob,
+        "framelift-enhanced.png"
+      );
+    });
+  }
+
+  /* =====================================
+     SHARED DOWNLOAD / SHARE HELPERS
+  ===================================== */
+
+  function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  }
+
+  async function shareBlob(blob, filename) {
+    const file = new File([blob], filename, {
+      type: blob.type || "image/png"
+    });
+
+    if (navigator.share && navigator.canShare) {
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: "Enhanced with Framelift.fx"
+        });
+        return true;
+      }
+    }
+
+    downloadBlob(blob, filename);
+    return false;
+  }
+
+  /* =====================================
+     PHOTO SHARE BUTTON
+     Creates a button automatically
+  ===================================== */
+
+  if (photoDownloadBtn && ! $("photoShare")) {
+    const shareBtn = document.createElement("button");
+
+    shareBtn.id = "photoShare";
+    shareBtn.type = "button";
+    shareBtn.textContent = "Share";
+    shareBtn.className = photoDownloadBtn.className || "btn";
+
+    photoDownloadBtn.insertAdjacentElement("afterend", shareBtn);
+
+    shareBtn.addEventListener("click", async () => {
+      if (!enhancedPhotoBlob) {
+        photoStatus("Enhance your photo first.");
+        return;
+      }
+
+      try {
+        const shared = await shareBlob(
+          enhancedPhotoBlob,
+          "framelift-enhanced.png"
+        );
+
+        photoStatus(
+          shared ? "Share menu opened!" : "Image downloaded. Sharing isn't supported here."
+        );
+      } catch (err) {
+        if (err.name !== "AbortError") {
+          photoStatus("Unable to share image.");
+        }
+      }
+    });
+  }
+
+  /* =====================================
+     BACKGROUND REMOVER SECTION
+     Auto-created — no HTML changes
+  ===================================== */
+
+  const bgSection = document.createElement("section");
+  bgSection.id = "backgroundRemoverSection";
+  bgSection.className = "photo-studio";
+
+  bgSection.innerHTML = `
+    <div class="section-heading">
+      <div>
+        <span class="eyebrow">03 / AI TOOL</span>
+        <h2>Background Remover</h2>
+        <p>Remove backgrounds and create transparent PNG images.</p>
+      </div>
+    </div>
+
+    <div class="bg-remover-card">
+      <label class="bg-upload" for="bgRemoveInput">
+        <span class="bg-upload-icon">✂️</span>
+        <strong>Upload an image</strong>
+        <span>Tap here to choose your photo</span>
+      </label>
+
+      <input
+        type="file"
+        id="bgRemoveInput"
+        accept="image/*"
+        hidden
+      />
+
+      <div id="bgRemoveWorkspace" hidden>
+        <div class="bg-preview-grid">
+          <div class="bg-preview-box">
+            <h4>Original</h4>
+            <img id="bgOriginalPreview" alt="Original image"/>
+          </div>
+
+          <div class="bg-preview-box">
+            <h4>Transparent Result</h4>
+            <div class="transparent-checker">
+              <img id="bgResultPreview" alt="Background removed"/>
+            </div>
+          </div>
+        </div>
+
+        <button id="bgRemoveButton" class="bg-action" type="button">
+          Remove Background
+        </button>
+
+        <button id="bgDownloadButton" class="bg-action" type="button" disabled>
+          Download PNG
+        </button>
+
+        <button id="bgShareButton" class="bg-action" type="button" disabled>
+          Share Image
+        </button>
+
+        <p id="bgRemoveMessage" role="status">
+          Select an image to begin.
+        </p>
+      </div>
+    </div>
+  `;
+
+  // Insert after the existing Photo Studio section
+  const photoStudio = $("photoStudio");
+
+  if (photoStudio) {
+    photoStudio.insertAdjacentElement("afterend", bgSection);
+  } else {
+    const bottomGrid = document.querySelector(".bottom-grid");
+    if (bottomGrid) {
+      bottomGrid.insertAdjacentElement("beforebegin", bgSection);
+    } else {
+      document.body.appendChild(bgSection);
+    }
+  }
+
+  /* Background remover styling */
+
+  const bgStyles = document.createElement("style");
+
+  bgStyles.textContent = `
+    #backgroundRemoverSection {
+      margin-top: 24px;
+    }
+
+    .bg-remover-card {
+      padding: 20px;
+      border: 1px solid rgba(114,237,220,.18);
+      border-radius: 20px;
+      background: rgba(12,42,48,.78);
+    }
+
+    .bg-upload {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 35px 15px;
+      border: 1px dashed rgba(120,240,216,.5);
+      border-radius: 16px;
+      cursor: pointer;
+      text-align: center;
+    }
+
+    .bg-upload-icon {
+      font-size: 32px;
+    }
+
+    .bg-preview-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin: 20px 0;
+    }
+
+    .bg-preview-box {
+      min-width: 0;
+      text-align: center;
+    }
+
+    .bg-preview-box img {
+      width: 100%;
+      max-height: 350px;
+      object-fit: contain;
+      border-radius: 12px;
+    }
+
+    .transparent-checker {
+      background-color: #fff;
+      background-image:
+        linear-gradient(45deg, #ddd 25%, transparent 25%),
+        linear-gradient(-45deg, #ddd 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #ddd 75%),
+        linear-gradient(-45deg, transparent 75%, #ddd 75%);
+      background-size: 20px 20px;
+      background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .bg-action {
+      width: 100%;
+      margin-top: 10px;
+      padding: 13px;
+      border: 1px solid rgba(120,240,216,.35);
+      border-radius: 12px;
+      background: rgba(66,207,201,.12);
+      color: inherit;
+      font: inherit;
+      cursor: pointer;
+    }
+
+    .bg-action:disabled {
+      opacity: .45;
+      cursor: not-allowed;
+    }
+
+    #bgRemoveMessage {
+      text-align: center;
+      color: #91b8b5;
+      margin-top: 14px;
+    }
+
+    @media(max-width:500px) {
+      .bg-preview-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  `;
+
+  document.head.appendChild(bgStyles);
+
+  /* =====================================
+     AI BACKGROUND REMOVAL ENGINE
+  ===================================== */
+
+  const bgInput = $("bgRemoveInput");
+  const bgOriginal = $("bgOriginalPreview");
+  const bgResult = $("bgResultPreview");
+  const bgWorkspace = $("bgRemoveWorkspace");
+  const bgButton = $("bgRemoveButton");
+  const bgDownload = $("bgDownloadButton");
+  const bgShare = $("bgShareButton");
+  const bgMessage = $("bgRemoveMessage");
+
+  let bgImageFile = null;
+  let bgRemovedBlob = null;
+  let bgObjectURL = null;
+
+  function bgStatus(text) {
+    if (bgMessage) bgMessage.textContent = text;
+  }
+
+  if (bgInput) {
+    bgInput.addEventListener("change", e => {
+      const file = e.target.files?.[0];
+      if (!file || !file.type.startsWith("image/")) {
+        bgStatus("Please choose a valid image.");
+        return;
+      }
+
+      bgImageFile = file;
+      bgRemovedBlob = null;
+
+      if (bgObjectURL) URL.revokeObjectURL(bgObjectURL);
+      bgObjectURL = URL.createObjectURL(file);
+
+      bgOriginal.src = bgObjectURL;
+      bgResult.removeAttribute("src");
+
+      bgWorkspace.hidden = false;
+      bgDownload.disabled = true;
+      bgShare.disabled = true;
+
+      bgStatus("Image ready. Tap Remove Background.");
+    });
+  }
+
+  if (bgButton) {
+    bgButton.addEventListener("click", async () => {
+      if (!bgImageFile) {
+        bgStatus("Upload an image first.");
+        return;
+      }
+
+      bgButton.disabled = true;
+      bgDownload.disabled = true;
+      bgShare.disabled = true;
+
+      bgStatus("Loading AI model...");
+
+      try {
+        // Load AI background-removal library from CDN
+        const bgModule = await import(
+          "https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.5.5/+esm"
+        );
+
+        bgStatus("AI is processing your image...");
+
+        const removeBackground = bgModule.removeBackground;
+
+        if (!removeBackground) {
+          throw new Error("Background removal module unavailable.");
+        }
+
+        const resultBlob = await removeBackground(bgImageFile, {
+          model: "medium",
+          output: {
+            format: "image/png",
+            quality: 1
+          }
+        });
+
+        bgRemovedBlob = resultBlob;
+
+        const resultURL = URL.createObjectURL(resultBlob);
+        bgResult.src = resultURL;
+
+        bgDownload.disabled = false;
+        bgShare.disabled = false;
+
+        bgStatus("Background successfully removed!");
+
+      } catch (error) {
+        console.error("Background removal error:", error);
+
+        bgStatus(
+          "AI processing failed. Check your internet connection and try again."
+        );
+
+      } finally {
+        bgButton.disabled = false;
+      }
+    });
+  }
+
+  /* Download transparent image */
+
+  if (bgDownload) {
+    bgDownload.addEventListener("click", () => {
+      if (!bgRemovedBlob) return;
+
+      downloadBlob(
+        bgRemovedBlob,
+        "framelift-background-removed.png"
+      );
+    });
+  }
+
+  /* Share transparent image */
+
+  if (bgShare) {
+    bgShare.addEventListener("click", async () => {
+      if (!bgRemovedBlob) return;
+
+      try {
+        const shared = await shareBlob(
+          bgRemovedBlob,
+          "framelift-background-removed.png"
+        );
+
+        bgStatus(
+          shared ? "Share menu opened!" : "Downloaded. Share menu unavailable."
+        );
+
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          bgStatus("Unable to share image.");
+        }
+      }
+    });
+  }
+
+  console.log("Framelift Photo Tools initialized.");
 
 })();
