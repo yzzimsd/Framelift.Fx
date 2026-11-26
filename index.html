@@ -56,7 +56,39 @@
         </div>
       </div>
     </section>
+<section class="panel enhancement-panel">
+  <div class="panel-heading">
+    <div>
+      <span class="kicker">QUALITY ENGINE</span>
+      <h2>Enhancement Studio</h2>
+    </div>
+    <span class="spark">✦</span>
+  </div>
 
+  <p>Choose quality adjustments for your video.</p>
+
+  <div class="enhancement-options">
+    <label><input type="checkbox" id="enhanceSharpen"> Sharpen details</label>
+    <label><input type="checkbox" id="enhanceDenoise"> Reduce noise</label>
+    <label><input type="checkbox" id="enhanceColor"> Enhance colors</label>
+    <label><input type="checkbox" id="enhanceSmooth"> Smooth motion</label>
+  </div>
+
+  <label for="enhanceStrength">Enhancement strength</label>
+  <select id="enhanceStrength">
+    <option value="light">Light</option>
+    <option value="medium" selected>Balanced</option>
+    <option value="strong">Strong</option>
+  </select>
+
+  <button id="applyEnhancements" class="primary full">
+    Apply Enhancements
+  </button>
+
+  <p id="enhancementMessage">
+    Select enhancements to customize your video.
+  </p>
+</section>
     <section class="bottom-grid">
       <div class="panel assistant-panel">
         <div class="panel-heading"><div><span class="kicker">YOUR COMPANION</span><h2>Assistant settings</h2></div><span class="spark">✦</span></div>
