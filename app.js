@@ -181,4 +181,578 @@ function closeIntro() {
 
 document.getElementById('enterApp').addEventListener('click', closeIntro);
 
-document.getElementById('replayIn
+document.getElementById('replayIntro').addEventListener('click', () =>
+  document.getElementById('introOverlay').classList.remove('done')
+);
+
+// SERVICE WORKER
+
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./service-worker.js').catch(() => {});
+  });
+}
+
+// EXISTING PREVIEW ENHANCEMENT
+
+const enhancementButton = document.getElementById('applyEnhancements');
+const enhancementMessage = document.getElementById('enhancementMessage');
+
+const enhancementControls = {
+  sharpen: document.getElementById('enhanceSharpen'),
+  denoise: document.getElementById('enhanceDenoise'),
+  color: document.getElementById('enhanceColor'),
+  smooth: document.getElementById('enhanceSmooth'),
+  strength: document.getElementById('enhanceStrength')
+};
+
+function selectedFilterString(previewMode = false) {
+  const strength = enhancementControls.strength.value;
+
+  const amount =
+    strength === 'light' ? 1 :
+    strength === 'strong' ? 3 : 2;
+
+  const filters = [];
+
+  if (enhancementControls.sharpen.checked) {
+    filters.push(`contrast(${1 + amount * 0.07})`);
+  }
+
+  if (enhancementControls.denoise.checked) {
+    filters.push(
+      `blur(${
+        strength === 'strong'
+          ? '0.45px'
+          : strength === 'medium'
+          ? '0.25px'
+          : '0.1px'
+      })`
+    );
+  }
+
+  if (enhancementControls.color.checked) {
+    filters.push(`saturate(${1 + amount * 0.20})`);
+  }
+
+  if (previewMode && enhancementControls.smooth.checked) {
+    filters.push(
+      `blur(${strength === 'strong' ? '0.3px' : '0.1px'})`
+    );
+  }
+
+  return filters.length ? filters.join(' ') : 'none';
+}
+
+function updateEnhancementPreview() {
+  if (!preview || !preview.src || !preview.videoWidth) {
+    enhancementMessage.textContent = 'Please upload a video first.';
+    return false;
+  }
+
+  const selected = [];
+
+  if (enhancementControls.sharpen.checked)
+    selected.push('Sharpen/contrast');
+
+  if (enhancementControls.denoise.checked)
+    selected.push('Light smoothing');
+
+  if (enhancementControls.color.checked)
+    selected.push('Color enhancement');
+
+  if (enhancementControls.smooth.checked)
+    selected.push('Smooth motion preview');
+
+  if (!selected.length) {
+    preview.style.filter = 'none';
+    enhancementMessage.textContent = 'Select at least one enhancement.';
+    return false;
+  }
+
+  preview.style.filter = selectedFilterString(true);
+
+  enhancementMessage.textContent =
+    `Preview applied: ${selected.join(', ')} (${enhancementControls.strength.value} strength).`;
+
+  return true;
+}
+
+// LOADING SCREEN
+
+async function showEnhancementLoader(processFunction) {
+  const loader = document.getElementById('enhanceLoader');
+  const percent = document.getElementById('loaderPercent');
+  const bar = document.getElementById('loaderBar');
+  const status = document.getElementById('loaderStatus');
+  const ring = document.querySelector('.loader-ring');
+
+  if (!loader || !percent || !bar || !status || !ring) {
+    throw new Error('Loading screen elements are missing.');
+  }
+
+  function updateProgress(value, text) {
+    const progress = Math.max(0, Math.min(100, value));
+
+    percent.textContent = `${progress}%`;
+    bar.style.width = `${progress}%`;
+
+    ring.style.background =
+      `conic-gradient(#78f0d8 ${progress * 3.6}deg,
+      rgba(120,240,216,.1) 0deg)`;
+
+    status.textContent = text;
+  }
+
+  loader.classList.remove('hidden');
+
+  try {
+    await new Promise(requestAnimationFrame);
+    return await processFunction(updateProgress);
+  } finally {
+    loader.classList.add('hidden');
+  }
+}
+
+// APPLY PREVIEW ENHANCEMENTS
+
+enhancementButton.addEventListener('click', async () => {
+  if (!preview || !preview.videoWidth) {
+    enhancementMessage.textContent = 'Please upload a video first.';
+    return;
+  }
+
+  enhancementButton.disabled = true;
+
+  try {
+    await showEnhancementLoader(async progress => {
+      progress(15, 'Preparing preview…');
+
+      await new Promise(r => setTimeout(r, 180));
+
+      progress(55, 'Applying selected visual adjustments…');
+
+      const ok = updateEnhancementPreview();
+
+      await new Promise(r => setTimeout(r, 180));
+
+      if (!ok) return false;
+
+      progress(100, 'Preview complete!');
+
+      return true;
+    });
+  } catch (err) {
+    console.error(err);
+    enhancementMessage.textContent = 'Preview failed. Please try again.';
+  } finally {
+    enhancementButton.disabled = false;
+  }
+});
+
+// FRAME-BY-FRAME EXPORT
+
+const exportButton = document.getElementById('exportFrames');
+const frameMessage = document.getElementById('frameExportMessage');
+const enhancedDownload = document.getElementById('enhancedDownload');
+const outputPanel = document.getElementById('outputPanel');
+const outputPreview = document.getElementById('outputPreview');
+
+function bestRecorderType() {
+  const types = [
+    'video/webm;codecs=vp9',
+    'video/webm;codecs=vp8',
+    'video/webm'
+  ];
+
+  return types.find(t =>
+    window.MediaRecorder && MediaRecorder.isTypeSupported(t)
+  ) || '';
+}
+
+function waitEvent(target, eventName, timeoutMs = 12000) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error(`Timed out waiting for ${eventName}`));
+    }, timeoutMs);
+
+    function cleanup() {
+      clearTimeout(timer);
+      target.removeEventListener(eventName, handler);
+      target.removeEventListener('error', errorHandler);
+    }
+
+    function handler() {
+      cleanup();
+      resolve();
+    }
+
+    function errorHandler() {
+      cleanup();
+      reject(new Error('Video playback error'));
+    }
+
+    target.addEventListener(eventName, handler, { once: true });
+    target.addEventListener('error', errorHandler, { once: true });
+  });
+}
+
+exportButton.addEventListener('click', async () => {
+  if (!currentFile || !preview.src || !preview.videoWidth) {
+    frameMessage.textContent = 'Please upload and load a video first.';
+    return;
+  }
+
+  if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) {
+    frameMessage.textContent =
+      'This browser does not support canvas video recording. Try a current Chrome browser.';
+    return;
+  }
+
+  const type = bestRecorderType();
+
+  if (!type) {
+    frameMessage.textContent =
+      'No compatible video recording format was detected in this browser.';
+    return;
+  }
+
+  exportButton.disabled = true;
+  enhancedDownload.classList.add('hidden');
+  frameMessage.textContent = 'Preparing frame processing…';
+
+  const originalTime = preview.currentTime;
+  const originalWasPlaying = !preview.paused;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = preview.videoWidth;
+  canvas.height = preview.videoHeight;
+
+  const ctx = canvas.getContext('2d', { alpha: false });
+
+  if (!ctx) {
+    exportButton.disabled = false;
+    frameMessage.textContent = 'Could not create frame-processing canvas.';
+    return;
+  }
+
+  const canvasStream = canvas.captureStream(30);
+
+  let audioStream = null;
+  let combinedStream = canvasStream;
+  let recorder = null;
+  let chunks = [];
+
+  try {
+    const captureFn = preview.captureStream || preview.mozCaptureStream;
+
+    if (captureFn) {
+      try {
+        audioStream = captureFn.call(preview);
+
+        const audioTracks = audioStream.getAudioTracks();
+
+        audioTracks.forEach(t => canvasStream.addTrack(t));
+      } catch (e) {
+        console.warn('Audio capture unavailable', e);
+      }
+    }
+
+    recorder = new MediaRecorder(combinedStream, {
+      mimeType: type
+    });
+
+    recorder.ondataavailable = e => {
+      if (e.data && e.data.size) chunks.push(e.data);
+    };
+
+    const finished = new Promise((resolve, reject) => {
+      recorder.onstop = resolve;
+      recorder.onerror = e =>
+        reject(e.error || new Error('Recorder error'));
+    });
+
+    await showEnhancementLoader(async progress => {
+      progress(2, 'Preparing output canvas…');
+
+      preview.pause();
+      preview.style.filter = 'none';
+
+      if (preview.readyState < 2) {
+        await waitEvent(preview, 'loadeddata');
+      }
+
+      if (preview.currentTime !== 0) {
+        const seekDone = waitEvent(preview, 'seeked').catch(() => {});
+        preview.currentTime = 0;
+        await seekDone;
+      }
+
+      const fps = 30;
+
+      recorder.start(1000);
+
+      progress(5, 'Processing video frames…');
+
+      await preview.play();
+
+      let lastProgress = -1;
+
+      return await new Promise((resolve, reject) => {
+        let rafId;
+
+        const draw = () => {
+          if (
+            preview.ended ||
+            preview.currentTime >= preview.duration - 0.02
+          ) {
+            try {
+              ctx.drawImage(
+                preview,
+                0,
+                0,
+                canvas.width,
+                canvas.height
+              );
+            } catch {}
+
+            recorder.stop();
+            resolve(true);
+            return;
+          }
+
+          try {
+            ctx.filter = selectedFilterString(false);
+
+            ctx.drawImage(
+              preview,
+              0,
+              0,
+              canvas.width,
+              canvas.height
+            );
+
+            ctx.filter = 'none';
+          } catch (err) {
+            recorder.stop();
+            reject(err);
+            return;
+          }
+
+          const pct = Math.min(
+            95,
+            5 + (preview.currentTime / preview.duration) * 90
+          );
+
+          const p = Math.floor(pct);
+
+          if (p !== lastProgress) {
+            lastProgress = p;
+
+            progress(
+              p,
+              `Processing frame at ${preview.currentTime.toFixed(1)}s of ${preview.duration.toFixed(1)}s…`
+            );
+          }
+
+          rafId = requestAnimationFrame(draw);
+        };
+
+        rafId = requestAnimationFrame(draw);
+
+        preview.addEventListener('error', () => {
+          cancelAnimationFrame(rafId);
+
+          try {
+            if (recorder.state !== 'inactive') recorder.stop();
+          } catch {}
+
+          reject(new Error('Video playback error during processing.'));
+        }, { once: true });
+      });
+    });
+
+    await finished;
+
+    const blob = new Blob(chunks, { type });
+
+    if (!blob.size) {
+      throw new Error('Recorder produced an empty video file.');
+    }
+
+    if (enhancedUrl) URL.revokeObjectURL(enhancedUrl);
+
+    enhancedUrl = URL.createObjectURL(blob);
+
+    outputPreview.src = enhancedUrl;
+    outputPanel.classList.remove('hidden');
+
+    enhancedDownload.href = enhancedUrl;
+
+    const ext = type.includes('mp4') ? 'mp4' : 'webm';
+
+    enhancedDownload.download = `framelift-enhanced.${ext}`;
+
+    enhancedDownload.textContent =
+      `Download processed video (${sizeLabel(blob.size)})`;
+
+    enhancedDownload.classList.remove('hidden');
+
+    frameMessage.textContent =
+      `Export complete. ${sizeLabel(blob.size)} output created. ` +
+      `${audioStream && audioStream.getAudioTracks().length
+        ? 'Audio track capture was attempted.'
+        : 'Audio may not be included in this browser.'}`;
+
+    say('Frame processing and video export are complete. Your original file remains unchanged.');
+
+  } catch (err) {
+    console.error('Frame export failed:', err);
+
+    frameMessage.textContent =
+      `Export failed: ${err.message || 'Browser processing error'}. Try a shorter or lower-resolution video.`;
+
+  } finally {
+    try {
+      preview.pause();
+      preview.currentTime = Math.min(
+        originalTime,
+        preview.duration || 0
+      );
+    } catch {}
+
+    if (originalWasPlaying) {
+      preview.play().catch(() => {});
+    }
+
+    try {
+      canvasStream.getTracks().forEach(t => t.stop());
+    } catch {}
+
+    try {
+      if (audioStream) {
+        audioStream.getTracks().forEach(t => t.stop());
+      }
+    } catch {}
+
+    exportButton.disabled = false;
+  }
+});
+
+/* ==========================================
+   PHOTO ENHANCER — FRAMELIFT.FX
+   APP.JS EXTENSION
+========================================== */
+
+(() => {
+  const photoInput = document.getElementById("photoInput");
+  const photoDropzone = document.getElementById("photoDropzone");
+  const photoWorkspace = document.getElementById("photoWorkspace");
+  const photoOriginal = document.getElementById("photoOriginal");
+  const photoEnhancedPreview = document.getElementById("photoEnhancedPreview");
+
+  const photoSharpen = document.getElementById("photoSharpen");
+  const photoDenoise = document.getElementById("photoDenoise");
+  const photoColor = document.getElementById("photoColor");
+  const photoStrength = document.getElementById("photoStrength");
+  const photoScale = document.getElementById("photoScale");
+
+  const enhancePhoto = document.getElementById("enhancePhoto");
+  const photoMessage = document.getElementById("photoMessage");
+  const photoDownload = document.getElementById("photoDownload");
+
+  if (!photoInput || !photoOriginal || !photoEnhancedPreview) {
+    console.warn("Photo Enhancer elements not found.");
+    return;
+  }
+
+  let originalImage = null;
+  let originalFile = null;
+  let enhancedCanvas = null;
+  let photoURL = null;
+
+  function photoStatus(text) {
+    if (photoMessage) photoMessage.textContent = text;
+  }
+
+  function loadPhoto(file) {
+    if (!file || !file.type.startsWith("image/")) {
+      photoStatus("Please select a valid image.");
+      return;
+    }
+
+    originalFile = file;
+
+    if (photoURL) URL.revokeObjectURL(photoURL);
+    photoURL = URL.createObjectURL(file);
+
+    const img = new Image();
+
+    img.onload = () => {
+      originalImage = img;
+
+      photoOriginal.src = photoURL;
+
+      if (photoEnhancedPreview.tagName === "IMG") {
+        photoEnhancedPreview.src = photoURL;
+      }
+
+      if (photoWorkspace) {
+        photoWorkspace.hidden = false;
+        photoWorkspace.style.display = "";
+      }
+
+      if (enhancePhoto) enhancePhoto.disabled = false;
+
+      photoStatus("Photo loaded successfully. Ready to enhance.");
+
+      enhancedCanvas = null;
+    };
+
+    img.onerror = () => {
+      photoStatus("Unable to load this image.");
+    };
+
+    img.src = photoURL;
+  }
+
+  // Upload button
+  photoInput.addEventListener("change", (event) => {
+    const file = event.target.files?.[0];
+    if (file) loadPhoto(file);
+  });
+
+  // Drag and drop
+  if (photoDropzone) {
+    photoDropzone.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      photoDropzone.classList.add("drag-active");
+    });
+
+    photoDropzone.addEventListener("dragleave", () => {
+      photoDropzone.classList.remove("drag-active");
+    });
+
+    photoDropzone.addEventListener("drop", (event) => {
+      event.preventDefault();
+      photoDropzone.classList.remove("drag-active");
+
+      const file = event.dataTransfer.files?.[0];
+      if (file) loadPhoto(file);
+    });
+  }
+
+  // Enhancement engine
+  function enhanceImage() {
+    if (!originalImage) {
+      photoStatus("Upload a photo first.");
+      return;
+    }
+
+    photoStatus("Enhancing photo...");
+
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+
+    const scale = ph
