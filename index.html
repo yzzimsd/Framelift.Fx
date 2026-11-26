@@ -95,6 +95,57 @@
       </div>
       <div class="panel system-panel"><span class="kicker">SYSTEM MESSAGE</span><p id="systemMessage">“Framelift.Fx is ready. Select a video when you're ready.”</p><span class="system-sign">— Framelift.Fx System</span></div>
     </section>
+<!-- Anime Voice Studio -->
+<section class="panel anime-voice-panel">
+  <div class="panel-header">
+    <h2>🎙️ Anime Voice Studio</h2>
+    <p>Choose an anime character voice style and language</p>
+  </div>
+
+  <div class="anime-voice-controls">
+
+    <label for="animeSelect">Anime</label>
+    <select id="animeSelect">
+      <option value="onepiece">One Piece</option>
+      <option value="aot">Attack on Titan</option>
+      <option value="jujutsu">Jujutsu Kaisen</option>
+      <option value="blackclover">Black Clover</option>
+      <option value="slime">Reincarnated as a Slime</option>
+      <option value="naruto">Naruto</option>
+    </select>
+
+    <label for="characterSelect">Character</label>
+    <select id="characterSelect"></select>
+
+    <label for="voiceLanguage">Language</label>
+    <select id="voiceLanguage">
+      <option value="ja-JP">🇯🇵 Japanese</option>
+      <option value="en-US">🇺🇸 English</option>
+    </select>
+
+    <label for="animeVoiceText">Text to speak</label>
+    <textarea
+      id="animeVoiceText"
+      rows="4"
+      placeholder="Type something for your anime voice..."
+    ></textarea>
+
+    <div class="anime-voice-buttons">
+      <button id="animeVoicePlay" class="primary">
+        ▶ Play Voice
+      </button>
+
+      <button id="animeVoiceStop" class="secondary">
+        ■ Stop
+      </button>
+    </div>
+
+    <p id="animeVoiceMessage">
+      Choose your anime, character, and language.
+    </p>
+
+  </div>
+</section>
     <footer>Built by Joshua, Jenny, Cassie, Iziah, and Alliah · Bachelor of Science in Information Technology <span>Framelift.fx © 2026</span></footer>
   </main>
 
