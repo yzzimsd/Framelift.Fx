@@ -80,38 +80,64 @@ document.getElementById('replayIntro').addEventListener('click', () => {
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));
 }
-// FrameLift FX Enhancement Studio
+// FrameLift FX Visual Enhancement Preview
 const enhancementButton = document.getElementById("applyEnhancements");
 const enhancementMessage = document.getElementById("enhancementMessage");
 
-if (enhancementButton && enhancementMessage) {
-  enhancementButton.addEventListener("click", () => {
-    const selected = [];
+const enhancementControls = {
+  sharpen: document.getElementById("enhanceSharpen"),
+  denoise: document.getElementById("enhanceDenoise"),
+  color: document.getElementById("enhanceColor"),
+  smooth: document.getElementById("enhanceSmooth"),
+  strength: document.getElementById("enhanceStrength")
+};
 
-    if (document.getElementById("enhanceSharpen")?.checked)
-      selected.push("Sharpen");
+function updateEnhancementPreview() {
+  if (!preview || !preview.src) {
+    enhancementMessage.textContent = "Please upload a video first.";
+    return;
+  }
 
-    if (document.getElementById("enhanceDenoise")?.checked)
-      selected.push("Denoise");
+  const selected = [];
+  const filters = [];
 
-    if (document.getElementById("enhanceColor")?.checked)
-      selected.push("Color Enhancement");
+  const strength = enhancementControls.strength.value;
 
-    if (document.getElementById("enhanceSmooth")?.checked)
-      selected.push("Smooth Motion");
+  const amount = strength === "light" ? 1 :
+                strength === "strong" ? 3 : 2;
 
-    const strength =
-      document.getElementById("enhanceStrength")?.value || "medium";
+  if (enhancementControls.sharpen.checked) {
+    selected.push("Sharpen");
+    filters.push(`contrast(${1 + amount * 0.04})`);
+  }
 
-    if (selected.length === 0) {
-      enhancementMessage.textContent =
-        "Please select at least one enhancement.";
-      return;
-    }
+  if (enhancementControls.denoise.checked) {
+    selected.push("Denoise");
+    filters.push(`brightness(${1 + amount * 0.01})`);
+  }
 
-    enhancementMessage.textContent =
-      "Selected: " + selected.join(", ") +
-      " | Strength: " + strength +
-      " | Ready for processing.";
-  });
+  if (enhancementControls.color.checked) {
+    selected.push("Color");
+    filters.push(`saturate(${1 + amount * 0.15})`);
+  }
+
+  if (enhancementControls.smooth.checked) {
+    selected.push("Smooth Motion");
+    filters.push(`blur(${strength === "strong" ? "0.4px" : "0.15px"})`);
+  }
+
+  if (selected.length === 0) {
+    preview.style.filter = "none";
+    enhancementMessage.textContent = "Select at least one enhancement.";
+    return;
+  }
+
+  preview.style.filter = filters.join(" ");
+
+  enhancementMessage.textContent =
+    "Preview adjustments applied: " +
+    selected.join(", ") +
+    " (" + strength + ").";
 }
+
+enhancementButton.addEventListener("click", updateEnhancementPreview);
