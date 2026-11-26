@@ -186,285 +186,234 @@ async function showEnhancementLoader(processFunction) {
   }
 }
 
-// ==========================================
-// REAL VIDEO PROCESSING + EXPORT + SHARE
+
+            // ==========================================
+// FRAME LIFT FX — SHARED PHOTO + VIDEO EXPORT
+// REPLACE OLD EXPORT/PROCESSING CODE WITH THIS
 // ==========================================
 
 let processedVideoBlob = null;
 let processedPhotoBlob = null;
 let latestProcessedFile = null;
+let exportObjectURL = null;
+let selectedMediaType = null;
+let selectedPhoto = null;
+let selectedPhotoURL = null;
 
-function getShareButton() {
-  let button = document.getElementById("shareProcessed");
+// Existing controls
+const enhancementButton = document.getElementById("applyEnhancements");
+const enhancementMessage = document.getElementById("enhancementMessage");
 
-  if (!button) {
-    button = document.createElement("button");
-    button.id = "shareProcessed";
-    button.type = "button";
-    button.textContent = "Share to Social Media";
-    button.className = "primary-btn";
+const enhancementControls = {
+  sharpen: document.getElementById("enhanceSharpen"),
+  denoise: document.getElementById("enhanceDenoise"),
+  color: document.getElementById("enhanceColor"),
+  smooth: document.getElementById("enhanceSmooth"),
+  strength: document.getElementById("enhanceStrength")
+};
 
-    const anchor =
-      document.getElementById("enhancedDownload") ||
-      document.getElementById("photoDownload") ||
-      enhancementButton;
+// Photo controls (if your existing HTML has them)
+const photoInput = document.getElementById("photoInput");
+const photoEnhanceButton = document.getElementById("enhancePhoto");
+const photoOriginal = document.getElementById("photoOriginal");
+const photoWorkspace = document.getElementById("photoWorkspace");
+const photoMessage = document.getElementById("photoMessage");
+const photoScale = document.getElementById("photoScale");
 
-    anchor?.parentElement?.appendChild(button);
+// ==========================================
+// CREATE ONE SHARED EXPORT PANEL
+// ==========================================
+
+const exportPanel = document.createElement("section");
+exportPanel.id = "unifiedExportPanel";
+exportPanel.innerHTML = `
+  <div class="fx-export-header">
+    <h2>Export & Output</h2>
+    <p>Your enhanced photo or video appears here.</p>
+  </div>
+
+  <div class="fx-export-preview">
+    <video id="fxOutputVideo" controls playsinline hidden></video>
+    <img id="fxOutputPhoto" alt="Enhanced output" hidden>
+    <div id="fxOutputEmpty">
+      <div class="fx-export-icon">✦</div>
+      <p>Your processed media will appear here</p>
+    </div>
+  </div>
+
+  <div class="fx-export-actions">
+    <a id="fxDownload" class="primary-btn" href="#" download hidden>
+      Download
+    </a>
+    <button id="fxShare" class="primary-btn" type="button" disabled>
+      Share
+    </button>
+  </div>
+
+  <p id="fxExportMessage">Ready for processing.</p>
+`;
+
+const exportStyles = document.createElement("style");
+exportStyles.textContent = `
+  #unifiedExportPanel {
+    width:100%;
+    box-sizing:border-box;
+    margin:0 0 24px;
+    padding:20px;
+    border:1px solid rgba(120,240,216,.20);
+    border-radius:18px;
+    background:rgba(12,42,48,.78);
+    color:#e9fffb;
   }
 
-  return button;
+  #unifiedExportPanel h2 {
+    margin:0 0 8px;
+    color:#78f0d8;
+  }
+
+  #unifiedExportPanel p {
+    color:#91b8b5;
+  }
+
+  .fx-export-preview {
+    width:100%;
+    min-height:180px;
+    margin:16px 0;
+    background:#06191e;
+    border-radius:14px;
+    overflow:hidden;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+
+  .fx-export-preview video,
+  .fx-export-preview img {
+    max-width:100%;
+    max-height:450px;
+    width:100%;
+    object-fit:contain;
+  }
+
+  #fxOutputEmpty {
+    text-align:center;
+    padding:35px 15px;
+  }
+
+  .fx-export-icon {
+    font-size:38px;
+    color:#78f0d8;
+  }
+
+  .fx-export-actions {
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+
+  .fx-export-actions button,
+  .fx-export-actions a {
+    flex:1;
+    min-width:120px;
+    text-align:center;
+    justify-content:center;
+  }
+
+  #fxShare:disabled {
+    opacity:.45;
+    cursor:not-allowed;
+  }
+
+  #fxExportMessage {
+    font-size:13px;
+    margin-top:12px;
+  }
+`;
+
+document.head.appendChild(exportStyles);
+
+// Place export panel near the top of the app
+const mainContainer =
+  document.querySelector("main") ||
+  document.querySelector(".main-content") ||
+  document.querySelector(".container") ||
+  dropzone?.parentElement;
+
+if (mainContainer) {
+  mainContainer.insertBefore(exportPanel, mainContainer.firstChild);
+} else {
+  document.body.insertBefore(exportPanel, document.body.firstChild);
 }
 
-async function shareProcessedFile() {
-  if (!latestProcessedFile) {
-    alert("Process a video or photo first.");
-    return;
+const fxOutputVideo = document.getElementById("fxOutputVideo");
+const fxOutputPhoto = document.getElementById("fxOutputPhoto");
+const fxOutputEmpty = document.getElementById("fxOutputEmpty");
+const fxDownload = document.getElementById("fxDownload");
+const fxShare = document.getElementById("fxShare");
+const fxExportMessage = document.getElementById("fxExportMessage");
+
+function fxMessage(text) {
+  fxExportMessage.textContent = text;
+
+  if (enhancementMessage) {
+    enhancementMessage.textContent = text;
   }
 
-  try {
-    if (
-      navigator.share &&
-      navigator.canShare &&
-      navigator.canShare({ files: [latestProcessedFile] })
-    ) {
-      await navigator.share({
-        files: [latestProcessedFile],
-        title: "Framelift.fx",
-        text: "Processed using Framelift.fx"
-      });
-    } else {
-      alert("Direct file sharing isn't supported in this browser. Download your processed file first.");
-    }
-  } catch (error) {
-    if (error.name !== "AbortError") {
-      console.error(error);
-      alert("Sharing was unsuccessful.");
-    }
-  }
-}
-
-getShareButton().addEventListener("click", shareProcessedFile);
-
-function getRecorderMime() {
-  const options = [
-    "video/webm;codecs=vp9",
-    "video/webm;codecs=vp8",
-    "video/webm"
-  ];
-
-  return options.find(type =>
-    MediaRecorder.isTypeSupported(type)
-  ) || "";
-}
-
-async function processAndExportVideo() {
-  if (!preview || !preview.videoWidth || !currentUrl) {
-    enhancementMessage.textContent = "Please select a video first.";
-    return;
-  }
-
-  if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) {
-    enhancementMessage.textContent =
-      "Video export is not supported in this browser. Try Chrome.";
-    return;
-  }
-
-  const mime = getRecorderMime();
-
-  if (!mime) {
-    enhancementMessage.textContent =
-      "No supported video export format is available.";
-    return;
-  }
-
-  enhancementButton.disabled = true;
-
-  const canvas = document.createElement("canvas");
-  canvas.width = preview.videoWidth;
-  canvas.height = preview.videoHeight;
-
-  const ctx = canvas.getContext("2d");
-
-  const stream = canvas.captureStream(30);
-
-  let sourceStream = null;
-  let recorder;
-  let chunks = [];
-
-  const oldTime = preview.currentTime;
-  const wasPlaying = !preview.paused;
-
-  try {
-    // Attempt to capture source audio, if the browser allows it.
-    const capture = preview.captureStream || preview.mozCaptureStream;
-
-    if (capture) {
-      try {
-        sourceStream = capture.call(preview);
-
-        sourceStream.getAudioTracks().forEach(track => {
-          stream.addTrack(track);
-        });
-      } catch (error) {
-        console.warn("Audio capture unavailable:", error);
-      }
-    }
-
-    recorder = new MediaRecorder(stream, { mimeType: mime });
-
-    recorder.ondataavailable = event => {
-      if (event.data && event.data.size) {
-        chunks.push(event.data);
-      }
-    };
-
-    const recorderDone = new Promise((resolve, reject) => {
-      recorder.onstop = resolve;
-      recorder.onerror = reject;
-    });
-
-    await showEnhancementLoader(async progress => {
-      progress(5, "Preparing video...");
-      preview.pause();
-
-      preview.currentTime = 0;
-
-      await new Promise(resolve => {
-        if (preview.readyState >= 2) {
-          resolve();
-        } else {
-          preview.addEventListener("loadeddata", resolve, { once: true });
-        }
-      });
-
-      progress(10, "Starting video processor...");
-
-      recorder.start(1000);
-
-      await preview.play();
-
-      return await new Promise((resolve, reject) => {
-        let animation;
-
-        function drawFrame() {
-          try {
-            ctx.filter = getExportFilters();
-            ctx.drawImage(preview, 0, 0, canvas.width, canvas.height);
-            ctx.filter = "none";
-          } catch (error) {
-            cancelAnimationFrame(animation);
-            reject(error);
-            return;
-          }
-
-          const percent = preview.duration
-            ? Math.min(
-                95,
-                10 + (preview.currentTime / preview.duration) * 85
-              )
-            : 10;
-
-          progress(
-            percent,
-            `Processing video ${Math.floor(percent)}%...`
-          );
-
-          if (preview.ended || preview.currentTime >= preview.duration) {
-            if (recorder.state !== "inactive") recorder.stop();
-            resolve(true);
-            return;
-          }
-
-          animation = requestAnimationFrame(drawFrame);
-        }
-
-        animation = requestAnimationFrame(drawFrame);
-      });
-    });
-
-    await recorderDone;
-
-    processedVideoBlob = new Blob(chunks, { type: mime });
-
-    if (!processedVideoBlob.size) {
-      throw new Error("The processed video is empty.");
-    }
-
-    const extension = mime.includes("mp4") ? "mp4" : "webm";
-
-    latestProcessedFile = new File(
-      [processedVideoBlob],
-      `framelift-processed.${extension}`,
-      { type: mime }
-    );
-
-    let download = document.getElementById("enhancedDownload");
-
-    if (!download) {
-      download = document.createElement("a");
-      download.id = "enhancedDownload";
-      download.textContent = "Download Processed Video";
-      download.className = "primary-btn";
-
-      enhancementButton.parentElement.appendChild(download);
-    }
-
-    if (enhancedUrl) URL.revokeObjectURL(enhancedUrl);
-
-    enhancedUrl = URL.createObjectURL(processedVideoBlob);
-
-    download.href = enhancedUrl;
-    download.download = latestProcessedFile.name;
-    download.classList.remove("hidden");
-
-    const outputPanel = document.getElementById("outputPanel");
-    const outputPreview = document.getElementById("outputPreview");
-
-    if (outputPanel) outputPanel.classList.remove("hidden");
-    if (outputPreview) outputPreview.src = enhancedUrl;
-
-    progress(100, "Video processing complete!");
-
-    enhancementMessage.textContent =
-      "Video processed successfully! Download or share your new file.";
-
-    say("Video processing complete. Your processed video is ready to download or share.");
-
-  } catch (error) {
-    console.error("Video processing error:", error);
-
-    enhancementMessage.textContent =
-      "Processing failed. Try a shorter video or a supported format.";
-
-  } finally {
-    preview.pause();
-
-    try {
-      preview.currentTime = oldTime;
-    } catch {}
-
-    if (wasPlaying) {
-      preview.play().catch(() => {});
-    }
-
-    stream.getTracks().forEach(track => track.stop());
-
-    if (sourceStream) {
-      sourceStream.getTracks().forEach(track => track.stop());
-    }
-
-    enhancementButton.disabled = false;
+  if (photoMessage) {
+    photoMessage.textContent = text;
   }
 }
 
-// Filters used on the actual exported video frames
+function fxShowOutput(type, url) {
+  fxOutputEmpty.hidden = true;
+  fxOutputVideo.hidden = true;
+  fxOutputPhoto.hidden = true;
+
+  if (type === "video") {
+    fxOutputVideo.src = url;
+    fxOutputVideo.hidden = false;
+  } else {
+    fxOutputPhoto.src = url;
+    fxOutputPhoto.hidden = false;
+  }
+
+  fxDownload.hidden = false;
+  fxShare.disabled = false;
+}
+
+function fxSaveOutput(blob, filename, type) {
+  if (exportObjectURL) {
+    URL.revokeObjectURL(exportObjectURL);
+  }
+
+  exportObjectURL = URL.createObjectURL(blob);
+
+  latestProcessedFile = new File(
+    [blob],
+    filename,
+    { type: blob.type }
+  );
+
+  fxDownload.href = exportObjectURL;
+  fxDownload.download = filename;
+  fxDownload.textContent = "Download";
+
+  fxShowOutput(type, exportObjectURL);
+}
+
+// ==========================================
+// SHARED ENHANCEMENT SETTINGS
+// ==========================================
+
+function fxStrengthAmount() {
+  const value = enhancementControls.strength?.value || "medium";
+
+  return value === "light" ? 1 :
+         value === "strong" ? 3 : 2;
+}
+
 function getExportFilters() {
-  const strength = enhancementControls.strength?.value || "medium";
-
-  const amount =
-    strength === "light" ? 1 :
-    strength === "strong" ? 3 : 2;
-
+  const amount = fxStrengthAmount();
   const filters = [];
 
   if (enhancementControls.sharpen?.checked) {
@@ -480,265 +429,445 @@ function getExportFilters() {
   }
 
   if (enhancementControls.smooth?.checked) {
-    filters.push(
-      `blur(${strength === "strong" ? "0.3px" : "0.1px"})`
-    );
+    filters.push(`blur(${amount * 0.1}px)`);
   }
 
   return filters.length ? filters.join(" ") : "none";
 }
 
-// Replace the old preview-only click handler with actual processing.
-enhancementButton.onclick = processAndExportVideo;
+function fxHasEnhancements() {
+  return Object.values(enhancementControls).some(control => {
+    return control && control.type === "checkbox" && control.checked;
+  });
+}
 
 // ==========================================
-// PHOTO ENHANCER — PROCESS + DOWNLOAD + SHARE
+// PROCESS PHOTO
 // ==========================================
 
-(() => {
-  const photoInput = document.getElementById("photoInput");
-  const photoOriginal = document.getElementById("photoOriginal");
-  const photoEnhancedPreview = document.getElementById("photoEnhancedPreview");
-
-  const photoSharpen = document.getElementById("photoSharpen");
-  const photoDenoise = document.getElementById("photoDenoise");
-  const photoColor = document.getElementById("photoColor");
-  const photoStrength = document.getElementById("photoStrength");
-  const photoScale = document.getElementById("photoScale");
-
-  const enhancePhoto = document.getElementById("enhancePhoto");
-  const photoMessage = document.getElementById("photoMessage");
-  const photoDownload = document.getElementById("photoDownload");
-
-  if (!photoInput || !enhancePhoto) {
-    console.warn("Photo Enhancer elements missing.");
+async function fxProcessPhoto() {
+  if (!selectedPhoto) {
+    fxMessage("Please upload a photo first.");
     return;
   }
 
-  let photoImage = null;
-  let photoFile = null;
-  let processedPhotoCanvas = null;
-  let originalPhotoURL = null;
-
-  function photoSay(text) {
-    if (photoMessage) photoMessage.textContent = text;
+  if (!fxHasEnhancements()) {
+    fxMessage("Select at least one enhancement first.");
+    return;
   }
 
-  // LOAD SELECTED PHOTO
+  const amount = fxStrengthAmount();
+  const scale = Math.max(
+    1,
+    Math.min(4, Number(photoScale?.value) || 1)
+  );
+
+  const canvas = document.createElement("canvas");
+
+  canvas.width = Math.round(selectedPhoto.naturalWidth * scale);
+  canvas.height = Math.round(selectedPhoto.naturalHeight * scale);
+
+  const ctx = canvas.getContext("2d");
+
+  if (!ctx) {
+    fxMessage("Canvas is not supported.");
+    return;
+  }
+
+  const filters = [];
+
+  if (enhancementControls.sharpen?.checked) {
+    filters.push(`contrast(${1 + amount * 0.07})`);
+  }
+
+  if (enhancementControls.color?.checked) {
+    filters.push(`saturate(${1 + amount * 0.20})`);
+  }
+
+  ctx.filter = filters.length ? filters.join(" ") : "none";
+
+  ctx.drawImage(
+    selectedPhoto,
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
+
+  ctx.filter = "none";
+
+  // Lightweight browser-based denoise approximation
+  if (enhancementControls.denoise?.checked) {
+    const tempCanvas = document.createElement("canvas");
+
+    tempCanvas.width = canvas.width;
+    tempCanvas.height = canvas.height;
+
+    const tempCtx = tempCanvas.getContext("2d");
+
+    tempCtx.filter = `blur(${amount * 0.12}px)`;
+    tempCtx.drawImage(canvas, 0, 0);
+    tempCtx.filter = "none";
+
+    ctx.globalAlpha = 0.10 * amount;
+    ctx.drawImage(tempCanvas, 0, 0);
+    ctx.globalAlpha = 1;
+  }
+
+  canvas.toBlob(blob => {
+    if (!blob) {
+      fxMessage("Could not create processed photo.");
+      return;
+    }
+
+    processedPhotoBlob = blob;
+
+    fxSaveOutput(
+      blob,
+      "framelift-enhanced-photo.jpg",
+      "photo"
+    );
+
+    fxMessage("Photo processing complete. Download or share your photo.");
+    say("Photo processing complete. Your enhanced photo is ready.");
+  }, "image/jpeg", 0.95);
+}
+
+// ==========================================
+// VIDEO EXPORT
+// ==========================================
+
+function fxRecorderMime() {
+  if (!window.MediaRecorder) return "";
+
+  const options = [
+    "video/webm;codecs=vp9",
+    "video/webm;codecs=vp8",
+    "video/webm"
+  ];
+
+  return options.find(type => MediaRecorder.isTypeSupported(type)) || "";
+}
+
+async function fxProcessVideo() {
+  if (!preview || !preview.videoWidth || !currentUrl) {
+    fxMessage("Please upload a video first.");
+    return;
+  }
+
+  if (!fxHasEnhancements()) {
+    fxMessage("Select at least one enhancement first.");
+    return;
+  }
+
+  if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) {
+    fxMessage("Video export is unsupported in this browser. Try Chrome.");
+    return;
+  }
+
+  const mime = fxRecorderMime();
+
+  if (!mime) {
+    fxMessage("No supported video export format found.");
+    return;
+  }
+
+  enhancementButton.disabled = true;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = preview.videoWidth;
+  canvas.height = preview.videoHeight;
+
+  const ctx = canvas.getContext("2d");
+  const stream = canvas.captureStream(30);
+
+  let recorder;
+  let chunks = [];
+  let sourceStream = null;
+  const oldTime = preview.currentTime;
+
+  try {
+    const capture = preview.captureStream || preview.mozCaptureStream;
+
+    if (capture) {
+      try {
+        sourceStream = capture.call(preview);
+
+        sourceStream.getAudioTracks().forEach(track => {
+          stream.addTrack(track);
+        });
+      } catch (error) {
+        console.warn("Audio capture unavailable.", error);
+      }
+    }
+
+    recorder = new MediaRecorder(stream, { mimeType: mime });
+
+    recorder.ondataavailable = event => {
+      if (event.data?.size) chunks.push(event.data);
+    };
+
+    const done = new Promise((resolve, reject) => {
+      recorder.onstop = resolve;
+      recorder.onerror = reject;
+    });
+
+    const loader = document.getElementById("enhanceLoader");
+    const percent = document.getElementById("loaderPercent");
+    const bar = document.getElementById("loaderBar");
+    const status = document.getElementById("loaderStatus");
+    const ring = document.querySelector(".loader-ring");
+
+    const showLoader = !!(loader && percent && bar && status && ring);
+
+    if (showLoader) loader.classList.remove("hidden");
+
+    const progress = (value, text) => {
+      if (!showLoader) return;
+
+      percent.textContent = `${Math.floor(value)}%`;
+      bar.style.width = `${value}%`;
+      status.textContent = text;
+
+      ring.style.background =
+        `conic-gradient(#78f0d8 ${value * 3.6}deg,
+        rgba(120,240,216,.1) 0deg)`;
+    };
+
+    preview.pause();
+    preview.currentTime = 0;
+
+    await new Promise(resolve => {
+      if (preview.readyState >= 2) resolve();
+      else preview.addEventListener("loadeddata", resolve, { once: true });
+    });
+
+    recorder.start(1000);
+
+    await preview.play();
+
+    await new Promise((resolve, reject) => {
+      let animation;
+
+      function drawFrame() {
+        try {
+          ctx.filter = getExportFilters();
+          ctx.drawImage(preview, 0, 0, canvas.width, canvas.height);
+          ctx.filter = "none";
+        } catch (error) {
+          cancelAnimationFrame(animation);
+          reject(error);
+          return;
+        }
+
+        const progressValue = preview.duration
+          ? Math.min(99, (preview.currentTime / preview.duration) * 100)
+          : 0;
+
+        progress(progressValue, `Processing video ${Math.floor(progressValue)}%`);
+
+        if (preview.ended || preview.currentTime >= preview.duration) {
+          if (recorder.state !== "inactive") recorder.stop();
+          resolve();
+          return;
+        }
+
+        animation = requestAnimationFrame(drawFrame);
+      }
+
+      animation = requestAnimationFrame(drawFrame);
+    });
+
+    await done;
+
+    processedVideoBlob = new Blob(chunks, { type: mime });
+
+    if (!processedVideoBlob.size) {
+      throw new Error("Empty video export.");
+    }
+
+    const ext = mime.includes("mp4") ? "mp4" : "webm";
+
+    fxSaveOutput(
+      processedVideoBlob,
+      `framelift-enhanced-video.${ext}`,
+      "video"
+    );
+
+    progress(100, "Processing complete!");
+
+    fxMessage("Video processing complete. Download or share your video.");
+    say("Video processing complete. Your enhanced video is ready.");
+
+    if (showLoader) {
+      setTimeout(() => loader.classList.add("hidden"), 700);
+    }
+
+  } catch (error) {
+    console.error("Video processing error:", error);
+    fxMessage("Video processing failed. Try a shorter video.");
+
+  } finally {
+    preview.pause();
+
+    try {
+      preview.currentTime = oldTime;
+    } catch {}
+
+    stream.getTracks().forEach(track => track.stop());
+
+    if (sourceStream) {
+      sourceStream.getTracks().forEach(track => track.stop());
+    }
+
+    const loader = document.getElementById("enhanceLoader");
+    if (loader) loader.classList.add("hidden");
+
+    if (enhancementButton) enhancementButton.disabled = false;
+  }
+}
+
+// ==========================================
+// AUTO DETECT PHOTO OR VIDEO
+// ==========================================
+
+async function fxApplyEnhancements() {
+  if (selectedMediaType === "photo") {
+    await fxProcessPhoto();
+  } else if (selectedMediaType === "video") {
+    await fxProcessVideo();
+  } else {
+    fxMessage("Upload a photo or video first.");
+  }
+}
+
+if (enhancementButton) {
+  enhancementButton.onclick = fxApplyEnhancements;
+}
+
+if (photoEnhanceButton) {
+  photoEnhanceButton.onclick = fxApplyEnhancements;
+}
+
+// ==========================================
+// PHOTO UPLOAD
+// ==========================================
+
+if (photoInput) {
   photoInput.addEventListener("change", event => {
     const file = event.target.files?.[0];
 
     if (!file || !file.type.startsWith("image/")) {
-      photoSay("Please select a valid photo.");
+      fxMessage("Please choose a valid photo.");
       return;
     }
 
-    photoFile = file;
+    selectedMediaType = "photo";
 
-    if (originalPhotoURL) {
-      URL.revokeObjectURL(originalPhotoURL);
+    if (selectedPhotoURL) {
+      URL.revokeObjectURL(selectedPhotoURL);
     }
 
-    originalPhotoURL = URL.createObjectURL(file);
+    selectedPhotoURL = URL.createObjectURL(file);
 
     const image = new Image();
 
     image.onload = () => {
-      photoImage = image;
-      processedPhotoCanvas = null;
+      selectedPhoto = image;
 
       if (photoOriginal) {
-        photoOriginal.src = originalPhotoURL;
+        photoOriginal.src = selectedPhotoURL;
       }
 
-      if (photoEnhancedPreview.tagName === "IMG") {
-        photoEnhancedPreview.src = originalPhotoURL;
+      if (photoWorkspace) {
+        photoWorkspace.hidden = false;
+        photoWorkspace.classList.remove("hidden");
       }
 
-      const workspace = document.getElementById("photoWorkspace");
-
-      if (workspace) {
-        workspace.hidden = false;
-        workspace.classList.remove("hidden");
-      }
-
-      enhancePhoto.disabled = false;
-
-      photoSay("Photo loaded successfully. Ready to process.");
-
-      if (photoDownload) photoDownload.classList.add("hidden");
+      fxMessage("Photo loaded. Adjust enhancements below and apply.");
     };
 
     image.onerror = () => {
-      photoSay("Unable to read this image.");
+      fxMessage("Unable to load this photo.");
     };
 
-    image.src = originalPhotoURL;
+    image.src = selectedPhotoURL;
   });
+}
 
-  // ACTUAL PHOTO PROCESSING
-  function processPhoto() {
-    if (!photoImage) {
-      photoSay("Please select a photo first.");
-      return null;
+// ==========================================
+// VIDEO SELECTION
+// ==========================================
+
+if (input) {
+  input.addEventListener("change", event => {
+    if (event.target.files?.[0]) {
+      selectedMediaType = "video";
+      fxMessage("Video selected. Adjust enhancements below and apply.");
     }
+  });
+}
 
-    const scale = Math.max(
-      1,
-      Math.min(4, Number(photoScale?.value) || 1)
-    );
-
-    const strength = photoStrength?.value || "medium";
-
-    const amount =
-      strength === "light" ? 1 :
-      strength === "strong" ? 3 : 2;
-
-    const canvas = document.createElement("canvas");
-
-    canvas.width = Math.round(photoImage.naturalWidth * scale);
-    canvas.height = Math.round(photoImage.naturalHeight * scale);
-
-    const ctx = canvas.getContext("2d");
-
-    if (!ctx) {
-      throw new Error("Canvas unavailable.");
+// Drag-and-drop video also selects video mode
+if (dropzone) {
+  dropzone.addEventListener("drop", event => {
+    if (event.dataTransfer?.files?.[0]) {
+      selectedMediaType = "video";
     }
+  });
+}
 
-    // Color and contrast processing
-    const contrast = photoSharpen?.checked
-      ? 1 + (amount * 0.07)
-      : 1;
+// ==========================================
+// SHARE — ANDROID SHARE MENU
+// ==========================================
 
-    const saturation = photoColor?.checked
-      ? 1 + (amount * 0.20)
-      : 1;
-
-    ctx.filter = `contrast(${contrast}) saturate(${saturation})`;
-
-    ctx.drawImage(
-      photoImage,
-      0,
-      0,
-      canvas.width,
-      canvas.height
-    );
-
-    ctx.filter = "none";
-
-    // Soft denoise approximation
-    if (photoDenoise?.checked) {
-      const temp = document.createElement("canvas");
-
-      temp.width = canvas.width;
-      temp.height = canvas.height;
-
-      const tempCtx = temp.getContext("2d");
-
-      tempCtx.filter = `blur(${amount * 0.12}px)`;
-
-      tempCtx.drawImage(canvas, 0, 0);
-
-      tempCtx.filter = "none";
-
-      ctx.globalAlpha = 0.10 * amount;
-
-      ctx.drawImage(temp, 0, 0);
-
-      ctx.globalAlpha = 1;
-    }
-
-    processedPhotoCanvas = canvas;
-
-    // Show enhanced output
-    const previewURL = canvas.toDataURL("image/jpeg", 0.95);
-
-    if (photoEnhancedPreview.tagName === "IMG") {
-      photoEnhancedPreview.src = previewURL;
-    } else {
-      photoEnhancedPreview.style.backgroundImage =
-        `url("${previewURL}")`;
-    }
-
-    // Make downloadable file
-    canvas.toBlob(blob => {
-      if (!blob) {
-        photoSay("Could not create the output image.");
-        return;
-      }
-
-      processedPhotoBlob = blob;
-
-      latestProcessedFile = new File(
-        [blob],
-        "framelift-photo-enhanced.jpg",
-        { type: "image/jpeg" }
-      );
-
-      if (photoDownload) {
-        photoDownload.href = URL.createObjectURL(blob);
-        photoDownload.download = "framelift-photo-enhanced.jpg";
-        photoDownload.classList.remove("hidden");
-
-        // Prevent anchor from being required if it was a button
-        photoDownload.onclick = event => {
-          if (photoDownload.tagName !== "A") {
-            event.preventDefault();
-            downloadBlob(blob, "framelift-photo-enhanced.jpg");
-          }
-        };
-      }
-
-      photoSay(
-        `Photo processed successfully! Output: ${canvas.width} × ${canvas.height}. Download or use Share to Social Media.`
-      );
-
-    }, "image/jpeg", 0.95);
-
-    return canvas;
+fxShare.addEventListener("click", async () => {
+  if (!latestProcessedFile) {
+    fxMessage("Process a photo or video first.");
+    return;
   }
 
-  // PROCESS BUTTON
-  enhancePhoto.addEventListener("click", async () => {
-    if (!photoImage) {
-      photoSay("Please select a photo first.");
-      return;
-    }
-
-    enhancePhoto.disabled = true;
-
-    try {
-      await showEnhancementLoader(async progress => {
-        progress(10, "Preparing photo...");
-
-        await new Promise(resolve => setTimeout(resolve, 200));
-
-        progress(35, "Analyzing image...");
-
-        await new Promise(resolve => setTimeout(resolve, 200));
-
-        progress(60, "Processing image...");
-
-        processPhoto();
-
-        await new Promise(resolve => setTimeout(resolve, 200));
-
-        progress(90, "Preparing output...");
-
-        await new Promise(resolve => setTimeout(resolve, 150));
-
-        progress(100, "Photo processing complete!");
-
-        return true;
+  try {
+    if (
+      navigator.share &&
+      navigator.canShare &&
+      navigator.canShare({ files: [latestProcessedFile] })
+    ) {
+      await navigator.share({
+        files: [latestProcessedFile],
+        title: "Framelift.fx",
+        text: "Processed with Framelift.fx"
       });
-
-    } catch (error) {
-      console.error("Photo processing error:", error);
-      photoSay("Photo processing failed. Please try again.");
-
-    } finally {
-      enhancePhoto.disabled = false;
+    } else {
+      fxMessage("Sharing is unavailable. Download your file instead.");
     }
-  });
+  } catch (error) {
+    if (error.name !== "AbortError") {
+      console.error(error);
+      fxMessage("Unable to share the file.");
+    }
+  }
+});
 
-})();
+// ==========================================
+// PREVIEW FILTER — PREVIEW ONLY
+// ==========================================
+
+function updateEnhancementPreview() {
+  if (selectedMediaType === "photo" && selectedPhoto) {
+    fxMessage("Photo selected. Apply Enhancements to export your photo.");
+    return true;
+  }
+
+  if (!preview?.videoWidth) {
+    fxMessage("Upload a photo or video first.");
+    return false;
+  }
+
+  preview.style.filter = getExportFilters();
+
+  fxMessage("Preview filters updated. Apply Enhancements to export.");
+  return true;
+}
+
+console.log("Framelift.fx shared photo/video export system ready.");
