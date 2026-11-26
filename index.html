@@ -71,6 +71,84 @@
       <div class="panel-heading"><div><span class="kicker">EXPORT RESULT</span><h2>Processed video</h2></div></div>
       <video id="outputPreview" controls playsinline style="width:100%;max-width:100%"></video>
     </section>
+<!-- SECTION 02: PHOTO ENHANCER -->
+<section class="panel photo-studio" id="photoStudio">
+  <div class="panel-heading">
+    <div>
+      <span class="kicker">SECTION 02 / IMAGE WORKSPACE</span>
+      <h2>Photo Enhancer</h2>
+    </div>
+    <span class="spark">✦</span>
+  </div>
+
+  <p>Enhance pictures separately from your video workflow.</p>
+
+  <label class="photo-dropzone" for="photoInput" id="photoDropzone">
+    <span class="upload-icon">▧</span>
+    <strong>Choose a photo</strong>
+    <span>Tap to browse your gallery or drop an image here</span>
+    <small>JPG, PNG, WebP and supported images</small>
+    <input id="photoInput" type="file" accept="image/*">
+  </label>
+
+  <div id="photoWorkspace" class="photo-workspace hidden">
+    <div class="photo-comparison">
+      <div class="photo-preview-card">
+        <div class="photo-preview-heading">ORIGINAL</div>
+        <img id="photoOriginal" alt="Original photo">
+      </div>
+
+      <div class="photo-preview-card">
+        <div class="photo-preview-heading">ENHANCED PREVIEW</div>
+        <img id="photoEnhancedPreview" alt="Enhanced photo">
+      </div>
+    </div>
+
+    <div class="photo-controls">
+      <div class="photo-options">
+        <label>
+          <input type="checkbox" id="photoSharpen" checked>
+          Sharpen / contrast
+        </label>
+
+        <label>
+          <input type="checkbox" id="photoDenoise">
+          Noise reduction
+        </label>
+
+        <label>
+          <input type="checkbox" id="photoColor" checked>
+          Color enhancement
+        </label>
+      </div>
+
+      <label for="photoStrength">Enhancement strength</label>
+      <select id="photoStrength">
+        <option value="light">Light</option>
+        <option value="medium" selected>Balanced</option>
+        <option value="strong">Strong</option>
+      </select>
+
+      <label for="photoScale">Output size</label>
+      <select id="photoScale">
+        <option value="1">Original size</option>
+        <option value="2">2× upscale</option>
+      </select>
+
+      <button id="enhancePhoto" class="primary full">
+        Enhance Photo
+      </button>
+
+      <p id="photoMessage">Choose a picture to begin.</p>
+
+      <a id="photoDownload"
+         class="download-link hidden"
+         download="framelift-enhanced-photo.png">
+        Download enhanced photo
+      </a>
+    </div>
+  </div>
+</section>
     <section class="bottom-grid">
       <div class="panel assistant-panel"><div class="panel-heading"><div><span class="kicker">YOUR COMPANION</span><h2>Assistant settings</h2></div><span class="spark">✦</span></div>
         <p>Choose a voice for Framelift.fx's system announcements. Anime character artwork and official character voices can be added when properly licensed.</p>
