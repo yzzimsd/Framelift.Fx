@@ -186,3 +186,51 @@ async function showEnhancementLoader(processFunction) {
   }
 }
 
+// APPLY ENHANCEMENT
+
+enhancementButton.addEventListener("click", async () => {
+  if (!preview || !preview.videoWidth) {
+    enhancementMessage.textContent =
+      "Please upload a video first.";
+    return;
+  }
+
+  enhancementButton.disabled = true;
+
+  try {
+    await showEnhancementLoader(async (progress) => {
+
+      progress(10, "Preparing video preview...");
+
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      progress(35, "Analyzing video details...");
+
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      progress(60, "Applying visual adjustments...");
+
+      const success = updateEnhancementPreview();
+
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      if (!success) return false;
+
+      progress(85, "Finalizing preview...");
+
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      progress(100, "Enhancement preview complete!");
+
+      return true;
+    });
+
+  } catch (error) {
+    console.error("Enhancement error:", error);
+    enhancementMessage.textContent =
+      "Enhancement failed. Please try again.";
+
+  } finally {
+    enhancementButton.disabled = false;
+  }
+});
