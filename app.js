@@ -639,3 +639,245 @@ exportButton.addEventListener('click', async () => {
     exportButton.disabled = false;
   }
 });
+
+/* ==========================================
+   PHOTO ENHANCER — FRAMELIFT.FX
+   APP.JS EXTENSION
+========================================== */
+
+(() => {
+  const photoInput = document.getElementById("photoInput");
+  const photoDropzone = document.getElementById("photoDropzone");
+  const photoWorkspace = document.getElementById("photoWorkspace");
+  const photoOriginal = document.getElementById("photoOriginal");
+  const photoEnhancedPreview = document.getElementById("photoEnhancedPreview");
+
+  const photoSharpen = document.getElementById("photoSharpen");
+  const photoDenoise = document.getElementById("photoDenoise");
+  const photoColor = document.getElementById("photoColor");
+  const photoStrength = document.getElementById("photoStrength");
+  const photoScale = document.getElementById("photoScale");
+
+  const enhancePhoto = document.getElementById("enhancePhoto");
+  const photoMessage = document.getElementById("photoMessage");
+  const photoDownload = document.getElementById("photoDownload");
+
+  if (!photoInput || !photoOriginal || !photoEnhancedPreview) {
+    console.warn("Photo Enhancer elements not found.");
+    return;
+  }
+
+  let originalImage = null;
+  let originalFile = null;
+  let enhancedCanvas = null;
+  let photoURL = null;
+
+  function photoStatus(text) {
+    if (photoMessage) photoMessage.textContent = text;
+  }
+
+  function loadPhoto(file) {
+    if (!file || !file.type.startsWith("image/")) {
+      photoStatus("Please select a valid image.");
+      return;
+    }
+
+    originalFile = file;
+
+    if (photoURL) URL.revokeObjectURL(photoURL);
+    photoURL = URL.createObjectURL(file);
+
+    const img = new Image();
+
+    img.onload = () => {
+      originalImage = img;
+
+      photoOriginal.src = photoURL;
+
+      if (photoEnhancedPreview.tagName === "IMG") {
+        photoEnhancedPreview.src = photoURL;
+      }
+
+      if (photoWorkspace) {
+        photoWorkspace.hidden = false;
+        photoWorkspace.style.display = "";
+      }
+
+      if (enhancePhoto) enhancePhoto.disabled = false;
+
+      photoStatus("Photo loaded successfully. Ready to enhance.");
+
+      enhancedCanvas = null;
+    };
+
+    img.onerror = () => {
+      photoStatus("Unable to load this image.");
+    };
+
+    img.src = photoURL;
+  }
+
+  // Upload button
+  photoInput.addEventListener("change", (event) => {
+    const file = event.target.files?.[0];
+    if (file) loadPhoto(file);
+  });
+
+  // Drag and drop
+  if (photoDropzone) {
+    photoDropzone.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      photoDropzone.classList.add("drag-active");
+    });
+
+    photoDropzone.addEventListener("dragleave", () => {
+      photoDropzone.classList.remove("drag-active");
+    });
+
+    photoDropzone.addEventListener("drop", (event) => {
+      event.preventDefault();
+      photoDropzone.classList.remove("drag-active");
+
+      const file = event.dataTransfer.files?.[0];
+      if (file) loadPhoto(file);
+    });
+  }
+
+  // Enhancement engine
+  function enhanceImage() {
+    if (!originalImage) {
+      photoStatus("Upload a photo first.");
+      return;
+    }
+
+    photoStatus("Enhancing photo...");
+
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+
+    const scale = photoScale?.value === "2"
+      ? 2
+      : 1;
+
+    const width = Math.min(originalImage.width * scale, 8192);
+    const height = Math.min(originalImage.height * scale, 8192);
+
+    canvas.width = width;
+    canvas.height = height;
+
+    const sharpen = Number(photoSharpen?.value || 0);
+    const denoise = Number(photoDenoise?.value || 0);
+    const color = Number(photoColor?.value || 100);
+
+    const strength = photoStrength?.value || "medium";
+
+    const multiplier = strength === "strong"
+      ? 1.5
+      : strength === "light"
+      ? 0.6
+      : 1;
+
+    const smoothing = Math.max(0, denoise * multiplier);
+
+    ctx.filter = `
+      contrast(${100 + sharpen * multiplier}%)
+      saturate(${color}%)
+      brightness(100%)
+      blur(${smoothing}px)
+    `;
+
+    ctx.drawImage(originalImage, 0, 0, width, height);
+
+    // Mild edge enhancement
+    if (sharpen > 0) {
+      ctx.filter = "none";
+
+      const imageData = ctx.getImageData(
+        0, 0, canvas.width, canvas.height
+      );
+
+      const data = imageData.data;
+      const copy = new Uint8ClampedArray(data);
+
+      const amount = Math.min(sharpen * multiplier * 0.15, 0.8);
+
+      for (let y = 1; y < height - 1; y++) {
+        for (let x = 1; x < width - 1; x++) {
+          const i = (y * width + x) * 4;
+
+          for (let c = 0; c < 3; c++) {
+            const center = copy[i + c];
+            const left = copy[i - 4 + c];
+            const right = copy[i + 4 + c];
+            const top = copy[i - width * 4 + c];
+            const bottom = copy[i + width * 4 + c];
+
+            const edge = center * 4 - left - right - top - bottom;
+
+            data[i + c] = center + edge * amount;
+          }
+        }
+      }
+
+      ctx.putImageData(imageData, 0, 0);
+    }
+
+    enhancedCanvas = canvas;
+
+    if (photoEnhancedPreview.tagName === "IMG") {
+      photoEnhancedPreview.src = canvas.toDataURL("image/png");
+    } else if (photoEnhancedPreview.tagName === "CANVAS") {
+      photoEnhancedPreview.width = canvas.width;
+      photoEnhancedPreview.height = canvas.height;
+
+      const previewCtx = photoEnhancedPreview.getContext("2d");
+      previewCtx.clearRect(
+        0, 0,
+        photoEnhancedPreview.width,
+        photoEnhancedPreview.height
+      );
+
+      previewCtx.drawImage(canvas, 0, 0);
+    }
+
+    photoStatus("Enhancement complete!");
+  }
+
+  if (enhancePhoto) {
+    enhancePhoto.addEventListener("click", enhanceImage);
+  }
+
+  // Download enhanced photo
+  if (photoDownload) {
+    photoDownload.addEventListener("click", () => {
+      if (!enhancedCanvas) {
+        photoStatus("Enhance the photo before downloading.");
+        return;
+      }
+
+      enhancedCanvas.toBlob((blob) => {
+        if (!blob) {
+          photoStatus("Download failed.");
+          return;
+        }
+
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+
+        link.href = url;
+        link.download = `framelift-enhanced-${Date.now()}.png`;
+
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+        photoStatus("Enhanced photo downloaded!");
+      }, "image/png");
+    });
+  }
+
+  photoStatus("Photo Enhancer ready.");
+
+})();
