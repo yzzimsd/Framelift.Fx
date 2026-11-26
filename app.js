@@ -142,6 +142,8 @@ function updateEnhancementPreview() {
 
 enhancementButton.addEventListener("click", updateEnhancementPreview);
 
+
+
 // ===================================
 // FRAMELIFT.FX - ANIME VOICE STUDIO
 // ===================================
@@ -158,26 +160,35 @@ const animeCharacters = {
   onepiece: ["Luffy", "Zoro", "Nami", "Robin"],
   aot: ["Levi", "Eren", "Mikasa", "Armin"],
   jujutsu: ["Nanami", "Geto", "Gojo", "Nobara"],
-  blackclover: ["Yami", "Nacht", "Asta", "Yuno", "Noelle", "Vanessa", "Charlotte"],
+  blackclover: [
+    "Yami", "Nacht", "Asta", "Yuno",
+    "Noelle", "Vanessa", "Charlotte"
+  ],
   slime: ["Rimuru"],
-  naruto: ["Sasuke", "Naruto", "Hinata", "Tsunade", "Sakura", "Kakashi", "Jiraiya", "Itachi", "Minato", "Kushina", "Iruka"]
+  naruto: [
+    "Sasuke", "Naruto", "Hinata", "Tsunade",
+    "Sakura", "Kakashi", "Jiraiya", "Itachi",
+    "Minato", "Kushina", "Iruka"
+  ]
 };
 
-// Character-inspired voice styles.
-// These adjust browser voice pitch and speed only.
+// Original character-inspired voice settings
 const characterStyles = {
   Luffy: { pitch: 1.3, rate: 1.12 },
   Zoro: { pitch: 0.8, rate: 0.95 },
   Nami: { pitch: 1.2, rate: 1.0 },
   Robin: { pitch: 0.85, rate: 0.9 },
+
   Levi: { pitch: 0.8, rate: 0.95 },
   Eren: { pitch: 1.05, rate: 1.08 },
   Mikasa: { pitch: 0.9, rate: 0.95 },
   Armin: { pitch: 1.15, rate: 1.0 },
+
   Nanami: { pitch: 0.8, rate: 0.9 },
   Geto: { pitch: 0.85, rate: 0.9 },
   Gojo: { pitch: 1.1, rate: 1.05 },
   Nobara: { pitch: 1.2, rate: 1.05 },
+
   Yami: { pitch: 0.75, rate: 0.9 },
   Nacht: { pitch: 0.8, rate: 0.9 },
   Asta: { pitch: 1.3, rate: 1.18 },
@@ -185,7 +196,9 @@ const characterStyles = {
   Noelle: { pitch: 1.2, rate: 1.0 },
   Vanessa: { pitch: 1.05, rate: 0.95 },
   Charlotte: { pitch: 0.9, rate: 0.9 },
+
   Rimuru: { pitch: 1.1, rate: 1.0 },
+
   Sasuke: { pitch: 0.8, rate: 0.9 },
   Naruto: { pitch: 1.25, rate: 1.12 },
   Hinata: { pitch: 1.25, rate: 0.9 },
@@ -199,7 +212,10 @@ const characterStyles = {
   Iruka: { pitch: 1.0, rate: 0.95 }
 };
 
+// Populate characters
 function updateCharacterList() {
+  if (!animeSelect || !characterSelect) return;
+
   const characters = animeCharacters[animeSelect.value] || [];
 
   characterSelect.innerHTML = "";
@@ -210,13 +226,22 @@ function updateCharacterList() {
     option.textContent = character;
     characterSelect.appendChild(option);
   });
+
+  animeVoiceMessage.textContent =
+    `${characters.length} characters available. Choose your character.`;
 }
 
 animeSelect.addEventListener("change", updateCharacterList);
-
-// Load the initial character list.
 updateCharacterList();
 
+// Load available device voices
+if ("speechSynthesis" in window) {
+  window.speechSynthesis.onvoiceschanged = () => {
+    window.speechSynthesis.getVoices();
+  };
+}
+
+// Play voice
 animeVoicePlay.addEventListener("click", () => {
   const text = animeVoiceText.value.trim();
 
@@ -227,41 +252,40 @@ animeVoicePlay.addEventListener("click", () => {
 
   if (!("speechSynthesis" in window)) {
     animeVoiceMessage.textContent =
-      "Speech is not supported by this browser.";
+      "Your browser does not support speech synthesis.";
     return;
   }
 
   window.speechSynthesis.cancel();
 
-  const utterance = new SpeechSynthesisUtterance(text);
-  const language = voiceLanguage.value;
   const character = characterSelect.value;
+  const language = voiceLanguage.value;
 
-  utterance.lang = language;
-
+  const utterance = new SpeechSynthesisUtterance(text);
   const style = characterStyles[character] || {
     pitch: 1,
     rate: 1
   };
 
+  utterance.lang = language;
   utterance.pitch = style.pitch;
   utterance.rate = style.rate;
 
   const voices = window.speechSynthesis.getVoices();
 
-  const matchingVoices = voices.filter(voice =>
+  const matchingVoice = voices.find(voice =>
     voice.lang.toLowerCase().startsWith(
       language.substring(0, 2).toLowerCase()
     )
   );
 
-  if (matchingVoices.length > 0) {
-    utterance.voice = matchingVoices[0];
+  if (matchingVoice) {
+    utterance.voice = matchingVoice;
   }
 
   utterance.onstart = () => {
     animeVoiceMessage.textContent =
-      "Playing " + character + " inspired voice...";
+      `Playing ${character}-inspired voice...`;
   };
 
   utterance.onend = () => {
@@ -270,12 +294,13 @@ animeVoicePlay.addEventListener("click", () => {
 
   utterance.onerror = () => {
     animeVoiceMessage.textContent =
-      "Voice playback failed. Please try again.";
+      "Unable to play voice. Try another language or voice.";
   };
 
   window.speechSynthesis.speak(utterance);
 });
 
+// Stop voice
 animeVoiceStop.addEventListener("click", () => {
   if ("speechSynthesis" in window) {
     window.speechSynthesis.cancel();
@@ -283,3 +308,7 @@ animeVoiceStop.addEventListener("click", () => {
 
   animeVoiceMessage.textContent = "Voice stopped.";
 });
+
+
+
+
