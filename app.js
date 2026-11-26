@@ -234,3 +234,427 @@ enhancementButton.addEventListener("click", async () => {
     enhancementButton.disabled = false;
   }
 });
+
+
+// ==========================================
+// PHOTO ENHANCER + MY COLLECTION
+// ==========================================
+
+const photoInput = document.getElementById("photoInput");
+const photoDropzone = document.getElementById("photoDropzone");
+const photoWorkspace = document.getElementById("photoWorkspace");
+const photoOriginal = document.getElementById("photoOriginal");
+const photoEnhancedPreview = document.getElementById("photoEnhancedPreview");
+const photoMessage = document.getElementById("photoMessage");
+const enhancePhotoButton = document.getElementById("enhancePhoto");
+const photoDownload = document.getElementById("photoDownload");
+
+const galleryGrid = document.getElementById("galleryGrid");
+const galleryEmpty = document.getElementById("galleryEmpty");
+const galleryCount = document.getElementById("galleryCount");
+
+let selectedPhoto = null;
+let photoPreviewUrl = null;
+let photoExportUrl = null;
+let photoDatabase = null;
+
+const galleryObjectUrls = new Map();
+
+// ==========================================
+// OPEN PHOTO DATABASE
+// ==========================================
+
+function openPhotoDatabase() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open("FrameliftPhotoCollection", 1);
+
+    request.onupgradeneeded = event => {
+      const db = event.target.result;
+
+      if (!db.objectStoreNames.contains("photos")) {
+        db.createObjectStore("photos", {
+          keyPath: "id",
+          autoIncrement: true
+        });
+      }
+    };
+
+    request.onsuccess = () => {
+      photoDatabase = request.result;
+      resolve(photoDatabase);
+    };
+
+    request.onerror = () => {
+      reject(request.error);
+    };
+  });
+}
+
+// ==========================================
+// SAVE PHOTO TO COLLECTION
+// ==========================================
+
+function savePhotoToCollection(blob, name) {
+  return new Promise((resolve, reject) => {
+    if (!photoDatabase) {
+      reject(new Error("Photo database is unavailable."));
+      return;
+    }
+
+    const transaction = photoDatabase.transaction(
+      ["photos"],
+      "readwrite"
+    );
+
+    const store = transaction.objectStore("photos");
+
+    store.add({
+      name: name,
+      image: blob,
+      date: new Date().toISOString()
+    });
+
+    transaction.oncomplete = () => resolve(true);
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+  });
+}
+
+// ==========================================
+// LOAD GALLERY
+// ==========================================
+
+function loadPhotoGallery() {
+  if (!photoDatabase) return;
+
+  const transaction = photoDatabase.transaction(
+    ["photos"],
+    "readonly"
+  );
+
+  const store = transaction.objectStore("photos");
+  const request = store.getAll();
+
+  request.onsuccess = () => {
+    renderPhotoGallery(request.result);
+  };
+
+  request.onerror = () => {
+    console.error("Could not load photo gallery.");
+  };
+}
+
+// ==========================================
+// DISPLAY GALLERY ITEMS
+// ==========================================
+
+function renderPhotoGallery(photos) {
+  galleryObjectUrls.forEach(url => URL.revokeObjectURL(url));
+  galleryObjectUrls.clear();
+
+  galleryGrid.innerHTML = "";
+
+  const total = photos.length;
+
+  galleryCount.textContent =
+    `${total} saved ${total === 1 ? "item" : "items"}`;
+
+  galleryEmpty.classList.toggle("hidden", total !== 0);
+
+  photos.slice().reverse().forEach(photo => {
+    const card = document.createElement("div");
+    card.className = "gallery-card";
+
+    const image = document.createElement("img");
+    const imageUrl = URL.createObjectURL(photo.image);
+
+    galleryObjectUrls.set(photo.id, imageUrl);
+
+    image.src = imageUrl;
+    image.alt = photo.name;
+    image.loading = "lazy";
+
+    const details = document.createElement("div");
+    details.className = "gallery-card-details";
+
+    const title = document.createElement("strong");
+    title.textContent = photo.name;
+
+    const date = document.createElement("small");
+    date.textContent = new Date(photo.date).toLocaleDateString();
+
+    const actions = document.createElement("div");
+    actions.className = "gallery-card-actions";
+
+    const downloadButton = document.createElement("button");
+    downloadButton.className = "primary";
+    downloadButton.textContent = "Download";
+
+    downloadButton.addEventListener("click", () => {
+      const link = document.createElement("a");
+      link.href = imageUrl;
+      link.download = photo.name;
+      link.click();
+    });
+
+    const deleteButton = document.createElement("button");
+    deleteButton.className = "secondary";
+    deleteButton.textContent = "Delete";
+
+    deleteButton.addEventListener("click", async () => {
+      const confirmed = window.confirm(
+        "Delete this picture from My Collection?"
+      );
+
+      if (!confirmed) return;
+
+      await deletePhotoFromCollection(photo.id);
+    });
+
+    details.append(title, date);
+    actions.append(downloadButton, deleteButton);
+    card.append(image, details, actions);
+
+    galleryGrid.appendChild(card);
+  });
+}
+
+// ==========================================
+// DELETE GALLERY ITEM
+// ==========================================
+
+function deletePhotoFromCollection(id) {
+  return new Promise((resolve, reject) => {
+    const transaction = photoDatabase.transaction(
+      ["photos"],
+      "readwrite"
+    );
+
+    transaction.objectStore("photos").delete(id);
+
+    transaction.oncomplete = () => {
+      loadPhotoGallery();
+      resolve(true);
+    };
+
+    transaction.onerror = () => reject(transaction.error);
+  });
+}
+
+// ==========================================
+// SELECT PHOTO
+// ==========================================
+
+function selectPhoto(file) {
+  if (!file || !file.type.startsWith("image/")) {
+    photoMessage.textContent = "Please choose a supported image.";
+    return;
+  }
+
+  selectedPhoto = file;
+
+  if (photoPreviewUrl) {
+    URL.revokeObjectURL(photoPreviewUrl);
+  }
+
+  photoPreviewUrl = URL.createObjectURL(file);
+
+  photoOriginal.src = photoPreviewUrl;
+  photoEnhancedPreview.src = photoPreviewUrl;
+
+  photoWorkspace.classList.remove("hidden");
+
+  if (photoExportUrl) {
+    URL.revokeObjectURL(photoExportUrl);
+    photoExportUrl = null;
+  }
+
+  photoDownload.classList.add("hidden");
+
+  photoMessage.textContent =
+    "Photo loaded. Choose your enhancements and tap Enhance Photo.";
+}
+
+// ==========================================
+// PHOTO INPUT
+// ==========================================
+
+photoInput.addEventListener("change", event => {
+  selectPhoto(event.target.files[0]);
+});
+
+["dragenter", "dragover"].forEach(type => {
+  photoDropzone.addEventListener(type, event => {
+    event.preventDefault();
+    photoDropzone.classList.add("drag");
+  });
+});
+
+["dragleave", "drop"].forEach(type => {
+  photoDropzone.addEventListener(type, event => {
+    event.preventDefault();
+    photoDropzone.classList.remove("drag");
+  });
+});
+
+photoDropzone.addEventListener("drop", event => {
+  selectPhoto(event.dataTransfer.files[0]);
+});
+
+// ==========================================
+// ENHANCE PHOTO
+// ==========================================
+
+enhancePhotoButton.addEventListener("click", async () => {
+  if (!selectedPhoto) {
+    photoMessage.textContent = "Please choose a photo first.";
+    return;
+  }
+
+  enhancePhotoButton.disabled = true;
+
+  photoMessage.textContent = "Processing your photo...";
+
+  try {
+    const image = new Image();
+
+    const imageUrl = URL.createObjectURL(selectedPhoto);
+
+    try {
+      await new Promise((resolve, reject) => {
+        image.onload = resolve;
+        image.onerror = reject;
+        image.src = imageUrl;
+      });
+
+      const scale = Number(
+        document.getElementById("photoScale").value
+      );
+
+      const strength =
+        document.getElementById("photoStrength").value;
+
+      const amount =
+        strength === "light" ? 1 :
+        strength === "strong" ? 3 : 2;
+
+      const sharpen =
+        document.getElementById("photoSharpen").checked;
+
+      const denoise =
+        document.getElementById("photoDenoise").checked;
+
+      const color =
+        document.getElementById("photoColor").checked;
+
+      const canvas = document.createElement("canvas");
+
+      canvas.width = Math.round(image.naturalWidth * scale);
+      canvas.height = Math.round(image.naturalHeight * scale);
+
+      const context = canvas.getContext("2d");
+
+      const filters = [];
+
+      if (sharpen) {
+        filters.push(`contrast(${1 + amount * 0.08})`);
+      }
+
+      if (denoise) {
+        filters.push(
+          `blur(${amount === 3 ? "0.5px" : "0.25px"})`
+        );
+      }
+
+      if (color) {
+        filters.push(`saturate(${1 + amount * 0.15})`);
+      }
+
+      context.filter = filters.length
+        ? filters.join(" ")
+        : "none";
+
+      context.drawImage(
+        image,
+        0,
+        0,
+        canvas.width,
+        canvas.height
+      );
+
+      context.filter = "none";
+
+      const blob = await new Promise((resolve, reject) => {
+        canvas.toBlob(result => {
+          if (result) resolve(result);
+          else reject(new Error("Image export failed."));
+        }, "image/png");
+      });
+
+      if (photoExportUrl) {
+        URL.revokeObjectURL(photoExportUrl);
+      }
+
+      photoExportUrl = URL.createObjectURL(blob);
+
+      photoEnhancedPreview.src = photoExportUrl;
+
+      const baseName = selectedPhoto.name.replace(/\.[^.]+$/, "");
+
+      const exportName = `${baseName}-enhanced.png`;
+
+      photoDownload.href = photoExportUrl;
+      photoDownload.download = exportName;
+      photoDownload.classList.remove("hidden");
+
+      photoMessage.textContent =
+        "Enhancement complete! Saving to My Collection...";
+
+      await savePhotoToCollection(blob, exportName);
+
+      loadPhotoGallery();
+
+      photoMessage.textContent =
+        "Success! Your enhanced photo is saved in My Collection and ready to download.";
+
+      say("Photo enhancement complete. Your picture has been saved to My Collection.");
+
+    } finally {
+      URL.revokeObjectURL(imageUrl);
+    }
+
+  } catch (error) {
+    console.error("Photo enhancement error:", error);
+
+    photoMessage.textContent =
+      "Photo processing failed. Please try another image.";
+
+  } finally {
+    enhancePhotoButton.disabled = false;
+  }
+});
+
+// ==========================================
+// GALLERY REFRESH
+// ==========================================
+
+document.getElementById("refreshGallery").addEventListener(
+  "click",
+  loadPhotoGallery
+);
+
+// ==========================================
+// INITIALIZE PHOTO DATABASE
+// ==========================================
+
+openPhotoDatabase()
+  .then(() => {
+    loadPhotoGallery();
+    console.log("Framelift.fx Photo Collection is ready.");
+  })
+  .catch(error => {
+    console.error("Photo database error:", error);
+
+    photoMessage.textContent =
+      "Gallery storage is unavailable in this browser.";
+  });
