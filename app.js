@@ -141,3 +141,37 @@ function updateEnhancementPreview() {
 }
 
 enhancementButton.addEventListener("click", updateEnhancementPreview);
+
+async function showEnhancementLoader(processFunction) {
+  const loader = document.getElementById("enhanceLoader");
+  const percent = document.getElementById("loaderPercent");
+  const bar = document.getElementById("loaderBar");
+  const status = document.getElementById("loaderStatus");
+  const ring = document.querySelector(".loader-ring");
+
+  if (!loader || !percent || !bar || !status || !ring) {
+    throw new Error("Loading screen elements are missing.");
+  }
+
+  function updateProgress(value, message) {
+    const progress = Math.max(0, Math.min(100, value));
+
+    percent.textContent = progress + "%";
+    bar.style.width = progress + "%";
+    ring.style.background =
+      `conic-gradient(#78f0d8 ${progress * 3.6}deg, rgba(120,240,216,.1) 0deg)`;
+
+    status.textContent = message;
+  }
+
+  loader.classList.remove("hidden");
+
+  try {
+    await new Promise(requestAnimationFrame);
+
+    return await processFunction(updateProgress);
+
+  } finally {
+    loader.classList.add("hidden");
+  }
+}
