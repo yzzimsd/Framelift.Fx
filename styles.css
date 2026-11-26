@@ -104,3 +104,142 @@ main{width:min(1120px,90%);margin:auto;position:relative;z-index:1}.hero{padding
   from { box-shadow: 0 0 15px #42cfc9; }
   to { box-shadow: 0 0 35px #78f0d8; }
 }
+/* PHOTO STUDIO */
+.photo-studio {
+  margin: 16px 0 0;
+}
+
+.photo-studio > p,
+.photo-controls > p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.photo-dropzone {
+  min-height: 210px;
+  margin-top: 18px;
+  border: 1px dashed #65cfc1aa;
+  border-radius: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 10px;
+  background: linear-gradient(135deg,#75efda0a,#3db8d10a);
+  cursor: pointer;
+  text-align: center;
+  padding: 20px;
+  transition: .25s;
+}
+
+.photo-dropzone:hover,
+.photo-dropzone.drag {
+  border-color: var(--mint);
+  background: #75efda12;
+  transform: translateY(-2px);
+}
+
+.photo-dropzone strong {
+  font-size: 14px;
+}
+
+.photo-dropzone span:not(.upload-icon) {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.photo-dropzone small {
+  font-size: 10px;
+  color: #6d9692;
+}
+
+.photo-dropzone input {
+  display: none;
+}
+
+.photo-workspace {
+  margin-top: 18px;
+}
+
+.photo-comparison {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.photo-preview-card {
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: #061c21;
+  padding: 10px;
+  min-width: 0;
+}
+
+.photo-preview-heading {
+  font-size: 9px;
+  letter-spacing: 1.4px;
+  color: var(--mint);
+  font-weight: 800;
+  margin: 2px 0 9px;
+}
+
+.photo-preview-card img {
+  display: block;
+  width: 100%;
+  max-height: 360px;
+  object-fit: contain;
+  border-radius: 9px;
+  background: #020b0d;
+  min-height: 100px;
+}
+
+.photo-controls {
+  margin-top: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.photo-controls label {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.photo-controls select {
+  width: 100%;
+}
+
+.photo-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.photo-options label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px;
+  background: #061c21;
+  border: 1px solid #8beedb12;
+  border-radius: 10px;
+}
+
+.photo-studio button:disabled {
+  opacity: .55;
+  cursor: wait;
+}
+
+@media(max-width:560px) {
+  .photo-comparison {
+    grid-template-columns: 1fr;
+  }
+
+  .photo-preview-card img {
+    max-height: 300px;
+  }
+
+  .photo-options {
+    grid-template-columns: 1fr;
+  }
+}
