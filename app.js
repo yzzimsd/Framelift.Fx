@@ -256,6 +256,7 @@ const galleryCount = document.getElementById("galleryCount");
 let selectedPhoto = null;
 let photoPreviewUrl = null;
 let photoExportUrl = null;
+let enhancedPhotoBlob = null;
 let photoDatabase = null;
 
 const galleryObjectUrls = new Map();
