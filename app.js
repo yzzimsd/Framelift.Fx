@@ -80,7 +80,9 @@ document.getElementById('replayIntro').addEventListener('click', () => {
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));
 }
-// FrameLift FX Visual Enhancement Preview
+
+// FRAME LIFT FX - PREMIUM ENHANCEMENT SYSTEM
+
 const enhancementButton = document.getElementById("applyEnhancements");
 const enhancementMessage = document.getElementById("enhancementMessage");
 
@@ -93,9 +95,9 @@ const enhancementControls = {
 };
 
 function updateEnhancementPreview() {
-  if (!preview || !preview.src) {
+  if (!preview || !preview.src || !preview.videoWidth) {
     enhancementMessage.textContent = "Please upload a video first.";
-    return;
+    return false;
   }
 
   const selected = [];
@@ -103,44 +105,50 @@ function updateEnhancementPreview() {
 
   const strength = enhancementControls.strength.value;
 
-  const amount = strength === "light" ? 1 :
-                strength === "strong" ? 3 : 2;
+  const amount =
+    strength === "light" ? 1 :
+    strength === "strong" ? 3 : 2;
 
   if (enhancementControls.sharpen.checked) {
     selected.push("Sharpen");
-    filters.push(`contrast(${1 + amount * 0.04})`);
+    filters.push(`contrast(${1 + amount * 0.07})`);
   }
 
   if (enhancementControls.denoise.checked) {
-    selected.push("Denoise");
-    filters.push(`brightness(${1 + amount * 0.01})`);
+    selected.push("Denoise Preview");
+    filters.push(`brightness(${1 + amount * 0.015})`);
   }
 
   if (enhancementControls.color.checked) {
-    selected.push("Color");
-    filters.push(`saturate(${1 + amount * 0.15})`);
+    selected.push("Color Enhancement");
+    filters.push(`saturate(${1 + amount * 0.20})`);
   }
 
   if (enhancementControls.smooth.checked) {
-    selected.push("Smooth Motion");
-    filters.push(`blur(${strength === "strong" ? "0.4px" : "0.15px"})`);
+    selected.push("Smooth Motion Preview");
+    filters.push(
+      `blur(${strength === "strong" ? "0.3px" : "0.1px"})`
+    );
   }
 
   if (selected.length === 0) {
     preview.style.filter = "none";
-    enhancementMessage.textContent = "Select at least one enhancement.";
-    return;
+    enhancementMessage.textContent =
+      "Select at least one enhancement.";
+    return false;
   }
 
   preview.style.filter = filters.join(" ");
 
   enhancementMessage.textContent =
-    "Preview adjustments applied: " +
+    "Enhancement preview applied: " +
     selected.join(", ") +
-    " (" + strength + ").";
+    " (" + strength + " strength).";
+
+  return true;
 }
 
-enhancementButton.addEventListener("click", updateEnhancementPreview);
+// PREMIUM LOADING SCREEN
 
 async function showEnhancementLoader(processFunction) {
   const loader = document.getElementById("enhanceLoader");
@@ -156,10 +164,12 @@ async function showEnhancementLoader(processFunction) {
   function updateProgress(value, message) {
     const progress = Math.max(0, Math.min(100, value));
 
-    percent.textContent = progress + "%";
-    bar.style.width = progress + "%";
+    percent.textContent = `${progress}%`;
+    bar.style.width = `${progress}%`;
+
     ring.style.background =
-      `conic-gradient(#78f0d8 ${progress * 3.6}deg, rgba(120,240,216,.1) 0deg)`;
+      `conic-gradient(#78f0d8 ${progress * 3.6}deg,
+      rgba(120,240,216,.1) 0deg)`;
 
     status.textContent = message;
   }
@@ -175,3 +185,53 @@ async function showEnhancementLoader(processFunction) {
     loader.classList.add("hidden");
   }
 }
+
+// APPLY ENHANCEMENT
+
+enhancementButton.addEventListener("click", async () => {
+  if (!preview || !preview.videoWidth) {
+    enhancementMessage.textContent =
+      "Please upload a video first.";
+    return;
+  }
+
+  enhancementButton.disabled = true;
+
+  try {
+    await showEnhancementLoader(async (progress) => {
+
+      progress(10, "Preparing video preview...");
+
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      progress(35, "Analyzing video details...");
+
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      progress(60, "Applying visual adjustments...");
+
+      const success = updateEnhancementPreview();
+
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      if (!success) return false;
+
+      progress(85, "Finalizing preview...");
+
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      progress(100, "Enhancement preview complete!");
+
+      return true;
+    });
+
+  } catch (error) {
+    console.error("Enhancement error:", error);
+    enhancementMessage.textContent =
+      "Enhancement failed. Please try again.";
+
+  } finally {
+    enhancementButton.disabled = false;
+  }
+});
+
